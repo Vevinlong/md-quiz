@@ -135,12 +135,14 @@
 - `filters`
 - `summary`
 - `distribution_groups`
+- `trait_distribution`
 - `items`
 
 其中：
 
 - `summary` 会区分总答题数、已完成数、进行中数、可计分完成数、traits-only 完成数
 - `distribution_groups` 按 `score_max` 分组展示原始分数分布
+- `trait_distribution` 只统计当前窗口内已完成且带 traits 结果的答卷，并按实际出现过的主倾向组合和维度对照聚合
 - `items` 展示候选人、版本、状态、来源、进入/完成时间、得分与答题详情入口
 
 ### `GET /api/admin/candidates`

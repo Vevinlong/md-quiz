@@ -739,6 +739,7 @@ def _candidate_attempt_results(candidate: dict[str, Any]) -> list[dict[str, Any]
                 "token": str(item.get("token") or "").strip(),
                 "quiz_name": str(item.get("quiz_name") or "").strip(),
                 "score": item.get("score"),
+                "score_display": str(item.get("score_display") or "").strip(),
                 "start_at": _iso_to_local_display(str(item.get("start_at") or "")),
                 "end_at": _iso_to_local_display(str(item.get("end_at") or "")),
                 "archive_name": str(item.get("_archive_name") or "").strip(),
@@ -1187,6 +1188,43 @@ def _quiz_analytics_score_meta(row: dict[str, Any], archive: dict[str, Any]) -> 
     return total_score, score_max, result_mode
 
 
+def _quiz_analytics_traits(archive: dict[str, Any]) -> dict[str, Any]:
+    current = dict(archive or {})
+    traits = current.get("traits")
+    if not isinstance(traits, dict) or not traits:
+        grading = current.get("grading") if isinstance(current.get("grading"), dict) else {}
+        traits = grading.get("traits") or grading.get("trait_result")
+    return dict(traits or {}) if isinstance(traits, dict) else {}
+
+
+def _quiz_analytics_trait_dimensions(traits: dict[str, Any]) -> list[str]:
+    primary_dimensions = traits.get("primary_dimensions") if isinstance(traits, dict) else []
+    out = [
+        str(item or "").strip()
+        for item in (primary_dimensions if isinstance(primary_dimensions, list) else [])
+        if str(item or "").strip()
+    ]
+    if out:
+        return out
+    paired_dimensions = traits.get("paired_dimensions") if isinstance(traits, dict) else []
+    if not isinstance(paired_dimensions, list):
+        return []
+    return [
+        str((item or {}).get("winner") or "").strip()
+        for item in paired_dimensions
+        if isinstance(item, dict) and str((item or {}).get("winner") or "").strip()
+    ]
+
+
+def _quiz_analytics_trait_combination(traits: dict[str, Any]) -> str:
+    return "".join(_quiz_analytics_trait_dimensions(traits))
+
+
+def _quiz_analytics_trait_summary(traits: dict[str, Any]) -> str:
+    combination = _quiz_analytics_trait_combination(traits)
+    return f"量表：{combination}" if combination else "量表"
+
+
 def _quiz_analytics_attempt_time(row: dict[str, Any]) -> str:
     status_key = validation_helpers._normalize_exam_status(str(row.get("status") or "").strip())
     if status_key == "finished":
@@ -1206,6 +1244,7 @@ def _serialize_quiz_analytics_item(
     if _looks_deleted_marker(candidate_name) or not candidate_name:
         candidate_name = f"候选人#{candidate_id}" if candidate_id > 0 else "候选人"
     total_score, score_max, result_mode = _quiz_analytics_score_meta(row, archive)
+    traits = _quiz_analytics_traits(archive)
     quiz_version_id = int(row.get("quiz_version_id") or 0)
     return {
         "attempt_id": int(row.get("attempt_id") or 0),
@@ -1228,6 +1267,8 @@ def _serialize_quiz_analytics_item(
         "score_max": score_max,
         "score_display": _score_display(total_score, score_max, result_mode=result_mode),
         "result_mode": result_mode,
+        "trait_combination": _quiz_analytics_trait_combination(traits),
+        "trait_summary": _quiz_analytics_trait_summary(traits) if traits else "",
         "detail_url": f"/admin/attempt/{str(row.get('token') or '').strip()}",
     }
 
@@ -1270,6 +1311,124 @@ def _build_quiz_analytics_distribution_groups(items: list[dict[str, Any]]) -> li
         ]
         out.append(current)
     return out
+
+
+def _quiz_analytics_percent(count: int, total: int) -> float:
+    if total <= 0:
+        return 0.0
+    return round((int(count or 0) / total) * 100, 1)
+
+
+def _quiz_analytics_count_rows(counts: dict[str, int], total: int, *, key_name: str = "label") -> list[dict[str, Any]]:
+    rows = [
+        {
+            key_name: key,
+            "count": int(count or 0),
+            "percent": _quiz_analytics_percent(int(count or 0), total),
+        }
+        for key, count in counts.items()
+        if str(key or "").strip() and int(count or 0) > 0
+    ]
+    return sorted(rows, key=lambda item: (-int(item.get("count") or 0), str(item.get(key_name) or "")))
+
+
+def _build_quiz_analytics_trait_distribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    total_count = 0
+    combination_counts: dict[str, int] = {}
+    combination_dimensions: dict[str, list[str]] = {}
+    primary_dimension_counts: dict[str, int] = {}
+    pair_counts: dict[str, dict[str, Any]] = {}
+
+    for row in rows:
+        status_key = validation_helpers._normalize_exam_status(str(row.get("status") or "").strip())
+        if status_key != "finished":
+            continue
+        archive = row.get("archive") if isinstance(row.get("archive"), dict) else {}
+        traits = _quiz_analytics_traits(archive)
+        if not traits:
+            continue
+        result_mode = _quiz_analytics_result_mode(archive)
+        if result_mode not in {"traits", "mixed"}:
+            continue
+
+        dimensions = _quiz_analytics_trait_dimensions(traits)
+        paired_dimensions = traits.get("paired_dimensions") if isinstance(traits.get("paired_dimensions"), list) else []
+        if not dimensions and not paired_dimensions:
+            continue
+
+        total_count += 1
+        combination = "".join(dimensions)
+        if combination:
+            combination_counts[combination] = int(combination_counts.get(combination) or 0) + 1
+            combination_dimensions.setdefault(combination, list(dimensions))
+            for dimension in dimensions:
+                primary_dimension_counts[dimension] = int(primary_dimension_counts.get(dimension) or 0) + 1
+
+        for pair in paired_dimensions:
+            if not isinstance(pair, dict):
+                continue
+            left = str(pair.get("left") or "").strip()
+            right = str(pair.get("right") or "").strip()
+            winner = str(pair.get("winner") or "").strip()
+            if not left or not right or not winner:
+                continue
+            key = f"{left}/{right}"
+            current = pair_counts.setdefault(
+                key,
+                {
+                    "key": key,
+                    "label": f"{left} / {right}",
+                    "left": left,
+                    "right": right,
+                    "description": str(pair.get("description") or "").strip(),
+                    "total_count": 0,
+                    "counts": {},
+                },
+            )
+            current["total_count"] = int(current.get("total_count") or 0) + 1
+            counts = current["counts"] if isinstance(current.get("counts"), dict) else {}
+            counts[winner] = int(counts.get(winner) or 0) + 1
+            current["counts"] = counts
+
+    combination_rows = []
+    for combination, count in combination_counts.items():
+        combination_rows.append(
+            {
+                "combination": combination,
+                "dimensions": list(combination_dimensions.get(combination) or []),
+                "count": int(count or 0),
+                "percent": _quiz_analytics_percent(int(count or 0), total_count),
+            }
+        )
+    combination_rows.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("combination") or "")))
+
+    pair_rows = []
+    for pair in pair_counts.values():
+        counts = pair.get("counts") if isinstance(pair.get("counts"), dict) else {}
+        total = int(pair.get("total_count") or 0)
+        left = str(pair.get("left") or "").strip()
+        right = str(pair.get("right") or "").strip()
+        pair_rows.append(
+            {
+                "key": str(pair.get("key") or "").strip(),
+                "label": str(pair.get("label") or "").strip(),
+                "left": left,
+                "right": right,
+                "description": str(pair.get("description") or "").strip(),
+                "left_count": int(counts.get(left) or 0),
+                "right_count": int(counts.get(right) or 0),
+                "total_count": total,
+                "winner_counts": _quiz_analytics_count_rows(counts, total, key_name="dimension"),
+            }
+        )
+
+    return {
+        "total_count": total_count,
+        "appeared_combination_count": len(combination_rows),
+        "combination_counts": combination_rows,
+        "primary_dimension_counts": _quiz_analytics_count_rows(primary_dimension_counts, total_count, key_name="dimension"),
+        "pair_counts": pair_rows,
+    }
 
 
 def _serialize_quiz_analytics_detail(
@@ -1367,6 +1526,7 @@ def _serialize_quiz_analytics_detail(
         },
         "summary": summary,
         "distribution_groups": _build_quiz_analytics_distribution_groups(items),
+        "trait_distribution": _build_quiz_analytics_trait_distribution(rows),
         "items": items,
     }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -2075,6 +2076,106 @@ def test_admin_quiz_analytics_detail_supports_window_scope_distribution_and_trai
     assert custom_payload["distribution_groups"][0]["score_max"] == 10
 
 
+def test_admin_quiz_analytics_trait_distribution_lists_appeared_combinations_only(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _version1_id, version2_id = _seed_quiz_analytics_demo("quiz-analytics-traits-demo")
+    now = datetime.now(timezone.utc)
+    pair_defs = [("I", "E"), ("N", "S"), ("T", "F"), ("J", "P"), ("A", "B")]
+
+    def trait_archive(primary_dimensions: list[str]) -> dict[str, Any]:
+        primary_set = set(primary_dimensions)
+        paired_dimensions = []
+        for left, right in pair_defs:
+            winner = left if left in primary_set else right
+            paired_dimensions.append(
+                {
+                    "left": left,
+                    "right": right,
+                    "winner": winner,
+                    "left_score": 8 if winner == left else 3,
+                    "right_score": 8 if winner == right else 3,
+                    "diff": 5,
+                }
+            )
+        return {
+            "primary_dimensions": list(primary_dimensions),
+            "paired_dimensions": paired_dimensions,
+            "dimension_list": [{"dimension": dimension, "score": 8} for dimension in primary_dimensions],
+        }
+
+    def save_trait_attempt(index: int, primary_dimensions: list[str]) -> None:
+        phone = f"139000002{index:02d}"
+        candidate_id = create_candidate(f"量表候选人{index}", phone)
+        token = f"analytics-traits-{index}"
+        create_quiz_paper(
+            candidate_id=candidate_id,
+            phone=phone,
+            quiz_key="quiz-analytics-traits-demo",
+            quiz_version_id=version2_id,
+            token=token,
+            status="finished",
+        )
+        update_quiz_paper_result(
+            token,
+            status="finished",
+            score=None,
+            entered_at=now - timedelta(days=5, minutes=index),
+            finished_at=now - timedelta(days=4, minutes=index),
+        )
+        save_quiz_archive(
+            archive_name=f"archive-analytics-traits-{index}",
+            token=token,
+            candidate_id=candidate_id,
+            quiz_key="quiz-analytics-traits-demo",
+            quiz_version_id=version2_id,
+            phone=phone,
+            archive={
+                "token": token,
+                "exam": {
+                    "quiz_key": "quiz-analytics-traits-demo",
+                    "quiz_version_id": version2_id,
+                    "title": "量表分析演示",
+                },
+                "timing": {
+                    "start_at": (now - timedelta(days=5, minutes=index)).isoformat(),
+                    "end_at": (now - timedelta(days=4, minutes=index)).isoformat(),
+                },
+                "result_mode": "traits",
+                "traits": trait_archive(primary_dimensions),
+            },
+        )
+
+    save_trait_attempt(1, ["I", "N", "T", "J", "A"])
+    save_trait_attempt(2, ["I", "N", "T", "J", "A"])
+    save_trait_attempt(3, ["E", "N", "F", "P", "B"])
+    _admin_login(client)
+
+    response = client.get("/api/admin/quiz-analytics/quiz-analytics-traits-demo?window=month&version_scope=current")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["traits_only_finished_count"] == 3
+    assert payload["distribution_groups"] == []
+    distribution = payload["trait_distribution"]
+    assert distribution["total_count"] == 3
+    assert distribution["appeared_combination_count"] == 2
+    assert [
+        (item["combination"], item["count"], item["percent"])
+        for item in distribution["combination_counts"]
+    ] == [("INTJA", 2, 66.7), ("ENFPB", 1, 33.3)]
+    assert all(item["count"] > 0 for item in distribution["combination_counts"])
+
+    ie_pair = next(item for item in distribution["pair_counts"] if item["key"] == "I/E")
+    assert ie_pair["left_count"] == 2
+    assert ie_pair["right_count"] == 1
+    ns_pair = next(item for item in distribution["pair_counts"] if item["key"] == "N/S")
+    assert ns_pair["left_count"] == 3
+    assert ns_pair["right_count"] == 0
+
+    first_item = next(item for item in payload["items"] if item["trait_combination"] == "INTJA")
+    assert first_item["trait_summary"] == "量表：INTJA"
+
+
 def test_admin_quiz_analytics_detail_handles_empty_window(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     _seed_quiz_analytics_demo("quiz-analytics-empty")
@@ -2292,6 +2393,46 @@ def test_admin_candidates_list_exposes_attempt_summary_and_uses_page_offset(monk
     assert len(page_1["items"]) == 20
     assert len(page_2["items"]) == 2
     assert {item["id"] for item in page_1["items"]}.isdisjoint({item["id"] for item in page_2["items"]})
+
+
+def test_admin_candidate_detail_attempt_results_include_score_display(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    version_id = _seed_exam_with_metadata("candidate-detail-score-demo")
+    candidate_id = create_candidate("详情分数候选人", "13900000034")
+    token = "candidate-detail-score-001"
+    finished_at = datetime(2026, 5, 22, 8, 30, tzinfo=timezone.utc)
+    save_quiz_archive(
+        archive_name="archive-candidate-detail-score-001",
+        token=token,
+        candidate_id=candidate_id,
+        quiz_key="candidate-detail-score-demo",
+        quiz_version_id=version_id,
+        phone="13900000034",
+        archive={
+            "token": token,
+            "exam": {
+                "quiz_key": "candidate-detail-score-demo",
+                "quiz_version_id": version_id,
+                "title": "详情分数试卷",
+            },
+            "timing": {
+                "start_at": finished_at.isoformat(),
+                "end_at": finished_at.isoformat(),
+            },
+            "total_score": 87,
+            "score_max": 100,
+            "result_mode": "scored",
+        },
+    )
+    _admin_login(client)
+
+    response = client.get(f"/api/admin/candidates/{candidate_id}")
+
+    assert response.status_code == 200
+    attempts = response.json()["profile"]["attempt_results"]
+    assert attempts[0]["quiz_name"] == "详情分数试卷"
+    assert attempts[0]["score"] == 87
+    assert attempts[0]["score_display"] == "87 / 100"
 
 
 def test_admin_assignment_url_uses_forwarded_https_scheme(monkeypatch, tmp_path):

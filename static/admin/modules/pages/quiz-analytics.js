@@ -51,7 +51,7 @@ export function createAdminQuizAnalyticsModule() {
 
     currentQuizAnalyticsListSortKey() {
       const current = String(this.route?.query?.list_sort || "time").trim().toLowerCase();
-      return current === "score" ? "score" : "time";
+      return current === "score" && this.quizAnalyticsHasScoredResults() ? "score" : "time";
     },
 
     currentQuizAnalyticsListSortOrder() {
@@ -60,6 +60,8 @@ export function createAdminQuizAnalyticsModule() {
     },
 
     currentQuizAnalyticsScoreFilter() {
+      const summary = this.quizAnalyticsDetail?.summary;
+      if (summary && Object.keys(summary).length && !this.quizAnalyticsHasScoredResults()) return null;
       const scoreMax = Number(this.route?.query?.score_filter_score_max || 0);
       const start = Number(this.route?.query?.score_filter_start || 0);
       const end = Number(this.route?.query?.score_filter_end || 0);
@@ -73,11 +75,18 @@ export function createAdminQuizAnalyticsModule() {
       };
     },
 
+    currentQuizAnalyticsTraitFilterCombination() {
+      return String(this.route?.query?.trait_filter_combination || "").trim();
+    },
+
     currentQuizAnalyticsKey() {
       return String(this.route?.query?.quiz_key || "").trim();
     },
 
     quizAnalyticsListSortOptions() {
+      if (!this.quizAnalyticsHasScoredResults()) {
+        return QUIZ_ANALYTICS_LIST_SORT_OPTIONS.filter((option) => option.key !== "score");
+      }
       return QUIZ_ANALYTICS_LIST_SORT_OPTIONS;
     },
 
@@ -114,7 +123,7 @@ export function createAdminQuizAnalyticsModule() {
         { key: "finished", label: "已完成", value: Number(summary.finished_count || 0), tone: "emerald" },
         { key: "progress", label: "进行中", value: Number(summary.in_progress_count || 0), tone: "amber" },
         { key: "scored", label: "可计分完成", value: Number(summary.scored_finished_count || 0), tone: "blue" },
-        { key: "traits", label: "Traits 完成", value: Number(summary.traits_only_finished_count || 0), tone: "violet" },
+        { key: "traits", label: "量表完成", value: Number(summary.traits_only_finished_count || 0), tone: "violet" },
       ];
     },
 
@@ -178,10 +187,16 @@ export function createAdminQuizAnalyticsModule() {
     },
 
     quizAnalyticsVisibleItems() {
-      const items = this.quizAnalyticsSortedItems();
-      const filter = this.currentQuizAnalyticsScoreFilter();
-      if (!filter) return items;
-      return items.filter((item) => this.quizAnalyticsItemMatchesScoreFilter(item, filter));
+      let items = this.quizAnalyticsSortedItems();
+      const scoreFilter = this.currentQuizAnalyticsScoreFilter();
+      const traitFilter = this.currentQuizAnalyticsTraitFilterCombination();
+      if (scoreFilter) {
+        items = items.filter((item) => this.quizAnalyticsItemMatchesScoreFilter(item, scoreFilter));
+      }
+      if (traitFilter) {
+        items = items.filter((item) => this.quizAnalyticsItemMatchesTraitFilter(item, traitFilter));
+      }
+      return items;
     },
 
     quizAnalyticsVisibleItemsCount() {
@@ -236,6 +251,30 @@ export function createAdminQuizAnalyticsModule() {
       const scoreMax = Number(item?.score_max);
       if (!Number.isFinite(score) || !Number.isFinite(scoreMax)) return false;
       return scoreMax === filter.scoreMax && score >= filter.start && score <= filter.end;
+    },
+
+    quizAnalyticsItemMatchesTraitFilter(item, traitFilter = this.currentQuizAnalyticsTraitFilterCombination()) {
+      const current = String(traitFilter || "").trim();
+      if (!current) return true;
+      return String(item?.trait_combination || "").trim() === current;
+    },
+
+    quizAnalyticsHasScoredResults() {
+      return Number(this.quizAnalyticsDetail?.summary?.scored_finished_count || 0) > 0;
+    },
+
+    quizAnalyticsResultDisplay(item) {
+      if (String(item?.result_mode || "").trim() === "traits") {
+        return String(item?.trait_summary || "量表").trim();
+      }
+      return String(item?.score_display || item?.trait_summary || "-").trim();
+    },
+
+    quizAnalyticsResultBadgeClass(item) {
+      if (String(item?.result_mode || "").trim() === "traits") {
+        return "rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700";
+      }
+      return "rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700";
     },
 
     quizAnalyticsHasDistribution() {
@@ -327,8 +366,89 @@ export function createAdminQuizAnalyticsModule() {
         && Number(row?.end || 0) === filter.end;
     },
 
+    quizAnalyticsTraitDistribution() {
+      return this.quizAnalyticsDetail?.trait_distribution || {};
+    },
+
+    quizAnalyticsHasTraitDistribution() {
+      return Number(this.quizAnalyticsTraitDistribution()?.total_count || 0) > 0
+        && this.quizAnalyticsTraitCombinationRows().length > 0;
+    },
+
+    quizAnalyticsTraitCombinationRows() {
+      const rows = this.quizAnalyticsTraitDistribution()?.combination_counts;
+      return Array.isArray(rows) ? rows : [];
+    },
+
+    quizAnalyticsTraitCombinationRowClass(row) {
+      const active = this.quizAnalyticsTraitCombinationIsActive(row);
+      const base = "grid w-full gap-2 rounded-xl border px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 sm:grid-cols-[7rem_minmax(0,1fr)_5.5rem] sm:items-center";
+      if (active) {
+        return `${base} border-violet-200 bg-white shadow-sm`;
+      }
+      return `${base} border-transparent hover:border-violet-100 hover:bg-white/70`;
+    },
+
+    quizAnalyticsTraitCombinationIsActive(row) {
+      return String(row?.combination || "").trim() === this.currentQuizAnalyticsTraitFilterCombination();
+    },
+
+    quizAnalyticsTraitPairRows() {
+      const rows = this.quizAnalyticsTraitDistribution()?.pair_counts;
+      return Array.isArray(rows) ? rows : [];
+    },
+
+    quizAnalyticsTraitMaxCombinationCount() {
+      return this.quizAnalyticsTraitCombinationRows().reduce(
+        (max, row) => Math.max(max, Number(row?.count || 0)),
+        0,
+      );
+    },
+
+    quizAnalyticsTraitCombinationBarStyle(row) {
+      const maxCount = this.quizAnalyticsTraitMaxCombinationCount();
+      const count = Number(row?.count || 0);
+      const percent = maxCount > 0 && count > 0 ? Math.max(4, Math.round((count / maxCount) * 100)) : 0;
+      return { width: `${percent}%` };
+    },
+
+    quizAnalyticsTraitPairSideStyle(pair, side) {
+      const total = Number(pair?.total_count || 0);
+      const key = side === "right" ? "right_count" : "left_count";
+      const count = Number(pair?.[key] || 0);
+      const percent = total > 0 && count > 0 ? Math.round((count / total) * 100) : 0;
+      return { width: `${percent}%` };
+    },
+
+    quizAnalyticsPercentLabel(value) {
+      const percent = Number(value || 0);
+      if (!Number.isFinite(percent)) return "0%";
+      return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(1)}%`;
+    },
+
+    quizAnalyticsHasActiveTraitFilter() {
+      return Boolean(this.currentQuizAnalyticsTraitFilterCombination());
+    },
+
+    quizAnalyticsTraitFilterLabel() {
+      const current = this.currentQuizAnalyticsTraitFilterCombination();
+      return current ? `已筛选：${current}` : "";
+    },
+
+    quizAnalyticsListEmptyTitle() {
+      if (this.quizAnalyticsHasActiveTraitFilter()) return "当前主倾向组合筛选下没有匹配记录";
+      if (this.quizAnalyticsHasActiveScoreFilter()) return "当前分数筛选下没有匹配记录";
+      return "当前窗口内没有可展示的答题记录";
+    },
+
+    quizAnalyticsListEmptyDescription() {
+      if (this.quizAnalyticsHasActiveTraitFilter()) return "可以再次点击已选组合取消筛选，或点击“清除组合”。";
+      if (this.quizAnalyticsHasActiveScoreFilter()) return "可以再次点击得分图中的分数段取消筛选，或点击“清除筛选”。";
+      return "只统计已进入答题的进行中记录，以及已完成的归档记录。";
+    },
+
     resetQuizAnalyticsDetail() {
-      this.quizAnalyticsDetail = { quiz: {}, filters: {}, summary: {}, distribution_groups: [], items: [] };
+      this.quizAnalyticsDetail = { quiz: {}, filters: {}, summary: {}, distribution_groups: [], trait_distribution: {}, items: [] };
     },
 
     syncQuizAnalyticsRoute({
@@ -342,11 +462,13 @@ export function createAdminQuizAnalyticsModule() {
       listSort,
       listOrder,
       scoreFilter,
+      traitFilterCombination,
     } = {}) {
       const normalizedVersionId = versionId ?? this.currentQuizAnalyticsVersionId() ?? "";
       const normalizedStartDate = startDate ?? this.currentQuizAnalyticsStartDate();
       const normalizedEndDate = endDate ?? this.currentQuizAnalyticsEndDate();
       const activeScoreFilter = scoreFilter === null ? null : (scoreFilter || this.currentQuizAnalyticsScoreFilter());
+      const normalizedTraitFilterCombination = traitFilterCombination ?? this.currentQuizAnalyticsTraitFilterCombination();
       this.setRouteSearchParams({
         quiz_key: String(quizKey || "").trim(),
         window: String(window || this.currentQuizAnalyticsWindow()).trim() || "month",
@@ -360,6 +482,7 @@ export function createAdminQuizAnalyticsModule() {
         score_filter_score_max: activeScoreFilter ? String(activeScoreFilter.scoreMax) : "",
         score_filter_start: activeScoreFilter ? String(activeScoreFilter.start) : "",
         score_filter_end: activeScoreFilter ? String(activeScoreFilter.end) : "",
+        trait_filter_combination: String(normalizedTraitFilterCombination || "").trim(),
       });
     },
 
@@ -412,6 +535,7 @@ export function createAdminQuizAnalyticsModule() {
           listSort: this.currentQuizAnalyticsListSortKey(),
           listOrder: this.currentQuizAnalyticsListSortOrder(),
           scoreFilter: this.currentQuizAnalyticsScoreFilter(),
+          traitFilterCombination: this.currentQuizAnalyticsTraitFilterCombination(),
         });
       }
       this.syncQuizAnalyticsDateInputs(
@@ -550,6 +674,7 @@ export function createAdminQuizAnalyticsModule() {
         listSort: this.currentQuizAnalyticsListSortKey(),
         listOrder: this.currentQuizAnalyticsListSortOrder(),
         scoreFilter: active ? null : nextFilter,
+        traitFilterCombination: "",
       });
     },
 
@@ -566,6 +691,42 @@ export function createAdminQuizAnalyticsModule() {
         listSort: this.currentQuizAnalyticsListSortKey(),
         listOrder: this.currentQuizAnalyticsListSortOrder(),
         scoreFilter: null,
+      });
+    },
+
+    toggleQuizAnalyticsTraitCombinationFilter(row) {
+      const combination = String(row?.combination || "").trim();
+      if (!combination) return;
+      const active = this.quizAnalyticsTraitCombinationIsActive(row);
+      this.syncQuizAnalyticsRoute({
+        quizKey: this.currentQuizAnalyticsKey() || this.quizAnalyticsDetail?.quiz?.quiz_key || "",
+        window: this.currentQuizAnalyticsWindow(),
+        startDate: this.currentQuizAnalyticsStartDate(),
+        endDate: this.currentQuizAnalyticsEndDate(),
+        versionScope: this.currentQuizAnalyticsVersionScope(),
+        versionId: this.currentQuizAnalyticsVersionId(),
+        distributionMode: this.currentQuizAnalyticsDistributionMode(),
+        listSort: this.currentQuizAnalyticsListSortKey(),
+        listOrder: this.currentQuizAnalyticsListSortOrder(),
+        scoreFilter: null,
+        traitFilterCombination: active ? "" : combination,
+      });
+    },
+
+    clearQuizAnalyticsTraitFilter() {
+      if (!this.currentQuizAnalyticsTraitFilterCombination()) return;
+      this.syncQuizAnalyticsRoute({
+        quizKey: this.currentQuizAnalyticsKey() || this.quizAnalyticsDetail?.quiz?.quiz_key || "",
+        window: this.currentQuizAnalyticsWindow(),
+        startDate: this.currentQuizAnalyticsStartDate(),
+        endDate: this.currentQuizAnalyticsEndDate(),
+        versionScope: this.currentQuizAnalyticsVersionScope(),
+        versionId: this.currentQuizAnalyticsVersionId(),
+        distributionMode: this.currentQuizAnalyticsDistributionMode(),
+        listSort: this.currentQuizAnalyticsListSortKey(),
+        listOrder: this.currentQuizAnalyticsListSortOrder(),
+        scoreFilter: this.currentQuizAnalyticsScoreFilter(),
+        traitFilterCombination: "",
       });
     },
 
