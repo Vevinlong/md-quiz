@@ -68,6 +68,39 @@ def test_admin_assignments_module_uses_page_query_param() -> None:
     assert "scheduleAssignmentsReloadFromFirstPage" in source
 
 
+def test_admin_candidates_page_exposes_pagination_controls() -> None:
+    source = (ROOT / "static" / "admin" / "pages" / "candidates.html").read_text(encoding="utf-8")
+
+    assert "candidatesHavePagination" in source
+    assert "首页" in source
+    assert "上一页" in source
+    assert "下一页" in source
+    assert "末页" in source
+
+
+def test_admin_candidates_module_uses_page_query_param() -> None:
+    source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
+
+    assert 'query.set("page"' in source
+    assert "scheduleCandidatesReloadFromFirstPage" in source
+
+
+def test_admin_candidates_page_exposes_attempt_summary() -> None:
+    html_source = (ROOT / "static" / "admin" / "pages" / "candidates.html").read_text(encoding="utf-8")
+    js_source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
+
+    assert "candidateAttemptTitle" in html_source
+    assert "candidateAttemptCompletionLabel" in html_source
+    assert "candidateAttemptShowScore(summary)" in html_source
+    assert "candidateAttemptScoreLabel" in html_source
+    assert "candidateAttemptDisplayRows" in html_source
+    assert "最近试卷" not in html_source
+    assert "attempt_summary" in js_source
+    assert "attempt_summaries" in js_source
+    assert "正在答题" in js_source
+    assert "正在判卷" in js_source
+
+
 def test_admin_quiz_analytics_route_and_nav_exist() -> None:
     router_source = (ROOT / "static" / "admin" / "modules" / "router.js").read_text(encoding="utf-8")
     state_source = (ROOT / "static" / "admin" / "modules" / "state.js").read_text(encoding="utf-8")

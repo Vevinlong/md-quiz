@@ -876,6 +876,7 @@ def list_candidates(
 ) -> list[dict[str, Any]]:
     # 查询的sql语句
     sql = """
+WITH filtered_candidates AS (
  SELECT
    id,
    name,
@@ -910,6 +911,61 @@ def list_candidates(
     if limit is not None:
         sql += " LIMIT %s"
         params.append(int(limit))   # 确保传给数据库的一定是整数 
+    if offset:
+        sql += " OFFSET %s"
+        params.append(int(offset))
+    sql += """
+)
+SELECT
+  c.id,
+  c.name,
+  c.phone,
+  c.created_at,
+  c.has_resume,
+  COALESCE(attempts.attempt_summaries, '[]'::jsonb) AS attempt_summaries
+FROM filtered_candidates c
+LEFT JOIN LATERAL (
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'attempt_id', recent.attempt_id,
+      'quiz_key', recent.quiz_key,
+      'quiz_version_id', recent.quiz_version_id,
+      'quiz_title', recent.quiz_title,
+      'token', recent.token,
+      'status', recent.status,
+      'score', recent.score,
+      'score_max', recent.score_max,
+      'result_mode', recent.result_mode,
+      'finished_at', recent.finished_at,
+      'created_at', recent.created_at
+    )
+    ORDER BY recent.sort_at DESC, recent.attempt_id DESC
+  ) AS attempt_summaries
+  FROM (
+    SELECT
+      ep.id AS attempt_id,
+      ep.quiz_key,
+      ep.quiz_version_id,
+      COALESCE(NULLIF(qv.title, ''), NULLIF(qd.title, ''), ep.quiz_key, '') AS quiz_title,
+      ep.token,
+      ep.status,
+      ep.score,
+      ar.data->'grading'->>'total_max' AS score_max,
+      ar.data->'grading'->>'result_mode' AS result_mode,
+      ep.finished_at,
+      ep.created_at,
+      COALESCE(ep.finished_at, ep.entered_at, ep.created_at) AS sort_at
+    FROM quiz_paper ep
+    LEFT JOIN assignment_record ar ON ar.token = ep.token
+    LEFT JOIN quiz_version qv ON qv.id = ep.quiz_version_id
+    LEFT JOIN quiz_definition qd ON qd.quiz_key = ep.quiz_key
+    WHERE ep.candidate_id = c.id
+    ORDER BY COALESCE(ep.finished_at, ep.entered_at, ep.created_at) DESC, ep.id DESC
+    LIMIT 2
+  ) recent
+) attempts ON TRUE
+ORDER BY c.id DESC
+"""
     # 连接数据库并将数据库中的内容都展示出来
     with conn_scope() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

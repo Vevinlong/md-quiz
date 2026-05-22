@@ -2206,6 +2206,94 @@ def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tm
     assert page_1_tokens.isdisjoint(page_2_tokens)
 
 
+def test_admin_candidates_list_exposes_attempt_summary_and_uses_page_offset(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    version_id = _seed_exam_with_metadata("candidate-list-summary-demo")
+    now = datetime.now(timezone.utc)
+    summary_candidate_id = create_candidate("候选人列表摘要", "13900000033")
+    token_old = "candidate-summary-001"
+    token_new = "candidate-summary-002"
+    create_assignment_record(
+        token_old,
+        {
+            "token": token_old,
+            "quiz_key": "candidate-list-summary-demo",
+            "quiz_version_id": version_id,
+            "candidate_id": summary_candidate_id,
+            "created_at": now.isoformat(),
+            "status": "finished",
+            "grading": {"total_max": 100, "result_mode": "scored"},
+        },
+    )
+    create_quiz_paper(
+        candidate_id=summary_candidate_id,
+        phone="13900000033",
+        quiz_key="candidate-list-summary-demo",
+        quiz_version_id=version_id,
+        token=token_old,
+        status="finished",
+    )
+    update_quiz_paper_result(token_old, status="finished", score=86, entered_at=now, finished_at=now)
+    create_assignment_record(
+        token_new,
+        {
+            "token": token_new,
+            "quiz_key": "candidate-list-summary-demo",
+            "quiz_version_id": version_id,
+            "candidate_id": summary_candidate_id,
+            "created_at": (now + timedelta(minutes=1)).isoformat(),
+            "status": "finished",
+            "grading": {"total_max": 100, "result_mode": "scored"},
+        },
+    )
+    create_quiz_paper(
+        candidate_id=summary_candidate_id,
+        phone="13900000033",
+        quiz_key="candidate-list-summary-demo",
+        quiz_version_id=version_id,
+        token=token_new,
+        status="finished",
+    )
+    update_quiz_paper_result(
+        token_new,
+        status="finished",
+        score=91,
+        entered_at=now + timedelta(minutes=1),
+        finished_at=now + timedelta(minutes=1),
+    )
+    for index in range(21):
+        create_candidate(f"分页候选人{index + 1:02d}", f"139000001{index:02d}")
+
+    _admin_login(client)
+
+    summary_response = client.get("/api/admin/candidates?q=候选人列表摘要")
+    page_1_response = client.get("/api/admin/candidates?page=1")
+    page_2_response = client.get("/api/admin/candidates?page=2")
+
+    assert summary_response.status_code == 200
+    summary_payload = summary_response.json()
+    assert len(summary_payload["items"]) == 1
+    summary = summary_payload["items"][0]["attempt_summary"]
+    summaries = summary_payload["items"][0]["attempt_summaries"]
+    assert len(summaries) == 2
+    assert [item["token"] for item in summaries] == [token_new, token_old]
+    assert summary["quiz_key"] == "candidate-list-summary-demo"
+    assert summary["quiz_name"] == "人格类型测试"
+    assert summary["completed"] is True
+    assert summary["completion_label"] == "已完成"
+    assert summary["score_display"] == "91 / 100"
+    assert summaries[1]["score_display"] == "86 / 100"
+
+    assert page_1_response.status_code == 200
+    assert page_2_response.status_code == 200
+    page_1 = page_1_response.json()
+    page_2 = page_2_response.json()
+    assert page_1["total_pages"] == 2
+    assert len(page_1["items"]) == 20
+    assert len(page_2["items"]) == 2
+    assert {item["id"] for item in page_1["items"]}.isdisjoint({item["id"] for item in page_2["items"]})
+
+
 def test_admin_assignment_url_uses_forwarded_https_scheme(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     _seed_exam_with_metadata("assignment-forwarded-demo")

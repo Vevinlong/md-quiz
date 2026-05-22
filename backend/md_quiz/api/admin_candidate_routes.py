@@ -2,12 +2,74 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter, File, Request, Response, UploadFile, status
 
 from . import admin as shared
 
 router = APIRouter()
+
+
+def _candidate_attempt_summary(item: dict[str, Any]) -> dict[str, Any]:
+    token = str(item.get("token") or item.get("attempt_token") or "").strip()
+    quiz_key = str(item.get("quiz_key") or item.get("attempt_quiz_key") or "").strip()
+    if not token and not quiz_key:
+        return {}
+    status_key = shared.validation_helpers._normalize_exam_status(
+        str(item.get("status") or item.get("attempt_status") or "").strip()
+    )
+    completed = status_key == "finished"
+    score = item.get("score")
+    if score is None:
+        score = item.get("attempt_score")
+    score_display = shared._score_display(
+        score,
+        item.get("score_max") if item.get("score_max") is not None else item.get("attempt_score_max"),
+        result_mode=str(item.get("result_mode") or item.get("attempt_result_mode") or "").strip(),
+    ) if score is not None or completed else ""
+    return {
+        "attempt_id": int(item.get("attempt_id") or 0),
+        "quiz_key": quiz_key,
+        "quiz_version_id": int(item.get("quiz_version_id") or item.get("attempt_quiz_version_id") or 0),
+        "quiz_name": str(item.get("quiz_title") or item.get("attempt_quiz_title") or "").strip() or quiz_key or "未知试卷",
+        "token": token,
+        "status": status_key,
+        "status_label": shared._status_label(status_key),
+        "completed": completed,
+        "completion_label": "已完成" if completed else "未完成",
+        "score": score,
+        "score_display": score_display,
+        "finished_at": shared._iso_or_empty(item.get("finished_at") or item.get("attempt_finished_at")),
+        "created_at": shared._iso_or_empty(item.get("created_at") or item.get("attempt_created_at")),
+    }
+
+
+def _candidate_attempt_summaries(item: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_items = item.get("attempt_summaries")
+    if not isinstance(raw_items, list):
+        raw_items = []
+    summaries: list[dict[str, Any]] = []
+    for raw in raw_items[:2]:
+        if not isinstance(raw, dict):
+            continue
+        summary = _candidate_attempt_summary(raw)
+        if summary:
+            summaries.append(summary)
+    return summaries
+
+
+def _serialize_candidate_list_item(item: dict[str, Any]) -> dict[str, Any]:
+    attempt_summaries = _candidate_attempt_summaries(item)
+    return {
+        "id": int(item.get("id") or 0),
+        "name": str(item.get("name") or "").strip(),
+        "phone": str(item.get("phone") or "").strip(),
+        "created_at": shared._iso_or_empty(item.get("created_at")),
+        "has_resume": bool(item.get("has_resume")),
+        "attempt_summary": attempt_summaries[0] if attempt_summaries else {},
+        "attempt_summaries": attempt_summaries,
+    }
 
 
 @router.get("/candidates")
@@ -36,16 +98,7 @@ def get_candidates(
         created_to=parsed_to,
     )
     return {
-        "items": [
-            {
-                "id": int(item.get("id") or 0),
-                "name": str(item.get("name") or "").strip(),
-                "phone": str(item.get("phone") or "").strip(),
-                "created_at": shared._iso_or_empty(item.get("created_at")),
-                "has_resume": bool(item.get("has_resume")),
-            }
-            for item in items
-        ],
+        "items": [_serialize_candidate_list_item(item) for item in items],
         "page": current_page,
         "per_page": per_page,
         "total": total,

@@ -237,7 +237,7 @@
                   </section>
 
                   <section x-show="candidateResumeAdminSummaries().length" class="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">管理员评价摘要</div>
+                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">面试评价摘要</div>
                     <div class="mt-2 divide-y divide-slate-200">
                       <template x-for="item in candidateResumeAdminSummaries()" :key="item.label + item.meta + item.text">
                         <article class="py-3 first:pt-0 last:pb-0">
@@ -265,7 +265,7 @@
 
             <section x-show="adminCompactPanelVisible('candidate-detail', 'actions')" class="admin-right-pane--stack space-y-4">
               <div class="admin-surface rounded-3xl border border-white/70 bg-white/82 p-5 shadow-[var(--admin-shadow)] backdrop-blur-xl">
-                <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">管理员评价</h2>
+                <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">面试评价</h2>
                 <textarea x-model="candidateEvaluation" class="mt-4 h-44 w-full rounded-lg border border-blue-100 bg-white px-4 py-4 text-sm leading-7 outline-none focus:border-blue-300" placeholder="记录你的评估结论"></textarea>
                 <button @click="saveCandidateEvaluation" type="button" class="mt-4 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">保存评价</button>
               </div>

@@ -265,7 +265,7 @@ def create_mcp_server(*, container: Any, settings: Any) -> tuple[Any, FastAPI]:
 
     @server.tool()
     def candidate_add_evaluation(candidate_id: int, evaluation: str) -> dict[str, Any]:
-        """为候选人追加管理员评价。"""
+        """为候选人追加面试评价。"""
         return _audit(
             "candidate_add_evaluation",
             lambda: service.candidate_add_evaluation(candidate_id, evaluation=evaluation),

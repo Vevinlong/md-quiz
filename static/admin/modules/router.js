@@ -71,7 +71,7 @@ export function createAdminRouterModule() {
       await loadHtmlFragment({
         mount: target,
         path: current.fragment,
-        cache: this.fragmentCache,
+        cache: null,
         alpine: window.Alpine,
       });
     },

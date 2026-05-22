@@ -91,6 +91,20 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(public_router)
 
+    @app.middleware("http")
+    async def _admin_static_no_cache(request: Request, call_next):
+        response = await call_next(request)
+        path = str(request.url.path or "")
+        if (
+            path == "/admin"
+            or path.startswith("/admin/")
+            or path.startswith("/static/admin/")
+            or path == "/static/assets/js/shared/runtime.js"
+        ):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+        return response
+
     if static_root.exists():
         app.mount("/static", StaticFiles(directory=static_root), name="static")
     @app.get("/healthz", include_in_schema=False)

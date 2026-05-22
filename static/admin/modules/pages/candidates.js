@@ -194,7 +194,7 @@ export function createAdminCandidatesModule() {
         const text = String(item?.text || "").trim();
         if (!text) return;
         items.push({
-          label: "管理员评价",
+          label: "面试评价",
           text,
           meta: String(item?.at_display || item?.at || "").trim(),
         });
@@ -214,6 +214,86 @@ export function createAdminCandidatesModule() {
         || this.candidateResumeCollectionGroups().length
         || this.candidateResumeAdminSummaries().length,
       );
+    },
+
+    candidateAttemptSummary(item) {
+      const summary = item?.attempt_summary;
+      return summary && typeof summary === "object" ? summary : {};
+    },
+
+    candidateAttemptSummaries(item) {
+      const summaries = item?.attempt_summaries;
+      if (Array.isArray(summaries)) {
+        return summaries
+          .filter((summary) => summary && typeof summary === "object")
+          .slice(0, 2);
+      }
+      const summary = this.candidateAttemptSummary(item);
+      return summary && Object.keys(summary).length ? [summary] : [];
+    },
+
+    candidateAttemptDisplayRows(item) {
+      const rows = this.candidateAttemptSummaries(item);
+      return rows.length ? rows : [{}];
+    },
+
+    candidateAttemptTitle(summary) {
+      return String(summary.quiz_name || summary.quiz_key || "").trim();
+    },
+
+    candidateAttemptHasSummary(summary) {
+      return Boolean(
+        this.candidateAttemptTitle(summary)
+        || String(summary.status || "").trim()
+        || String(summary.score_display || "").trim(),
+      );
+    },
+
+    candidateAttemptCompletionLabel(summary) {
+      if (!this.candidateAttemptHasSummary(summary)) {
+        return "暂无答题";
+      }
+      if (summary.completed) return "已完成";
+      switch (String(summary.status || "").trim()) {
+        case "in_quiz":
+          return "正在答题";
+        case "grading":
+          return "正在判卷";
+        default:
+          return "未完成";
+      }
+    },
+
+    candidateAttemptCompletionClass(summary) {
+      const classes = [
+        "rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-5",
+      ];
+      if (!this.candidateAttemptHasSummary(summary)) {
+        classes.push("border-slate-200 bg-slate-50 text-slate-500");
+      } else if (summary.completed) {
+        classes.push("border-emerald-200 bg-emerald-50 text-emerald-700");
+      } else if (String(summary.status || "").trim() === "in_quiz") {
+        classes.push("border-blue-200 bg-blue-50 text-blue-700");
+      } else if (String(summary.status || "").trim() === "grading") {
+        classes.push("border-amber-200 bg-amber-50 text-amber-700");
+      } else {
+        classes.push("border-amber-200 bg-amber-50 text-amber-700");
+      }
+      return classes.join(" ");
+    },
+
+    candidateAttemptShowScore(summary) {
+      if (!this.candidateAttemptHasSummary(summary)) return false;
+      const score = String(summary.score_display || "").trim();
+      return summary.completed || Boolean(score && score !== "-");
+    },
+
+    candidateAttemptScoreLabel(summary) {
+      if (!this.candidateAttemptHasSummary(summary)) {
+        return "暂无分数";
+      }
+      const score = String(summary.score_display || "").trim();
+      return score && score !== "-" ? `得分 ${score}` : "暂无分数";
     },
 
     formatExperienceYears(value) {
@@ -379,12 +459,92 @@ export function createAdminCandidatesModule() {
       input.click();
     },
 
-    async loadCandidates({ quiet = false } = {}) {
+    currentCandidatesPage() {
+      const page = Number(this.candidates?.page || 1);
+      if (!Number.isFinite(page) || page <= 0) {
+        return 1;
+      }
+      return Math.floor(page);
+    },
+
+    candidateTotalPages() {
+      const totalPages = Number(this.candidates?.total_pages || 1);
+      if (!Number.isFinite(totalPages) || totalPages <= 0) {
+        return 1;
+      }
+      return Math.floor(totalPages);
+    },
+
+    candidatesHavePagination() {
+      return this.candidateTotalPages() > 1;
+    },
+
+    canGoToPreviousCandidatesPage() {
+      return this.currentCandidatesPage() > 1;
+    },
+
+    canGoToNextCandidatesPage() {
+      return this.currentCandidatesPage() < this.candidateTotalPages();
+    },
+
+    candidatePaginationButtonClass(disabled) {
+      const classes = [
+        "inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-semibold transition",
+      ];
+      if (disabled) {
+        classes.push("cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300");
+      } else {
+        classes.push("border-blue-100 bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700");
+      }
+      return classes.join(" ");
+    },
+
+    normalizeCandidatesPage(page, fallback = 1) {
+      const candidate = Number(page);
+      const fallbackPage = Number(fallback);
+      if (!Number.isFinite(candidate) || candidate <= 0) {
+        if (!Number.isFinite(fallbackPage) || fallbackPage <= 0) {
+          return 1;
+        }
+        return Math.max(1, Math.floor(fallbackPage));
+      }
+      return Math.max(1, Math.floor(candidate));
+    },
+
+    async changeCandidatesPage(page) {
+      const nextPage = this.normalizeCandidatesPage(page, this.currentCandidatesPage());
+      if (nextPage === this.currentCandidatesPage()) {
+        return;
+      }
+      await this.loadCandidates({ page: nextPage });
+    },
+
+    async reloadCandidatesFromFirstPage() {
+      window.clearTimeout(this.candidatesFilterTimer);
+      this.candidatesFilterTimer = null;
+      await this.loadCandidates({ page: 1 });
+    },
+
+    scheduleCandidatesReloadFromFirstPage() {
+      window.clearTimeout(this.candidatesFilterTimer);
+      this.candidatesFilterTimer = window.setTimeout(() => {
+        this.candidatesFilterTimer = null;
+        this.loadCandidates({ page: 1 });
+      }, 220);
+    },
+
+    async loadCandidates({ quiet = false, page = null } = {}) {
       const query = new URLSearchParams();
+      const nextPage = this.normalizeCandidatesPage(page, this.candidates?.page || 1);
+      query.set("page", String(nextPage));
       if (this.filters.candidates.q) query.set("q", this.filters.candidates.q);
       const data = await this.api(`/api/admin/candidates?${query.toString()}`, { quiet });
       if (!data) return;
-      this.candidates = data;
+      this.candidates = {
+        ...(this.candidates || {}),
+        items: Array.isArray(data?.items) ? data.items : [],
+        ...data,
+      };
     },
 
     async createCandidate() {
@@ -395,7 +555,7 @@ export function createAdminCandidatesModule() {
       });
       this.candidateForm = { name: "", phone: "" };
       this.showNotice("候选人创建成功");
-      await this.loadCandidates({ quiet: true });
+      await this.loadCandidates({ quiet: true, page: 1 });
     },
 
     openCandidateResumeUploadPicker() {
@@ -477,7 +637,7 @@ export function createAdminCandidatesModule() {
         headers: { "Content-Type": "application/json" },
       });
       this.candidateEvaluation = "";
-      this.showNotice("管理员评价已保存");
+      this.showNotice("面试评价已保存");
     },
 
     downloadCandidateResume() {

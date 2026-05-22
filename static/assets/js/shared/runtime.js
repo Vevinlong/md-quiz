@@ -2,14 +2,17 @@ export async function loadHtmlFragment({ mount, path, cache = {}, alpine = globa
   if (!(mount instanceof HTMLElement) || !path) {
     return;
   }
-  let html = cache[path];
+  const canUseCache = cache && typeof cache === "object";
+  let html = canUseCache ? cache[path] : null;
   if (typeof html !== "string") {
-    const response = await fetch(path, { credentials: "same-origin" });
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store" });
     if (!response.ok) {
       throw new Error(`片段加载失败: ${path}`);
     }
     html = await response.text();
-    cache[path] = html;
+    if (canUseCache) {
+      cache[path] = html;
+    }
   }
   mutateFragmentDom(alpine, () => {
     destroyFragmentChildren(mount, alpine);

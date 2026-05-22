@@ -145,7 +145,7 @@
 
 ### `GET /api/admin/candidates`
 
-返回候选人列表与筛选条件。
+返回候选人列表、最近答题简报与筛选条件。
 
 ### `POST /api/admin/candidates`
 
@@ -161,7 +161,7 @@
 
 ### `POST /api/admin/candidates/{candidate_id}/evaluation`
 
-追加管理员评价。
+追加面试评价。
 
 ### `GET /api/admin/candidates/{candidate_id}/resume`
 

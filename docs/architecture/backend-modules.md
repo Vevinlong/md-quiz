@@ -35,7 +35,7 @@
 - `admin.py`：后台共用 payload、serializer、helper，以及子路由聚合入口
 - `admin_core_routes.py`：后台会话、bootstrap、运行时配置、任务列表与手动投递
 - `admin_quiz_routes.py`：题库列表/详情、仓库绑定/重绑、同步任务、公开邀约开关
-- `admin_candidate_routes.py`：候选人 CRUD、简历上传/重解析、简历下载、管理员评价
+- `admin_candidate_routes.py`：候选人 CRUD、简历上传/重解析、简历下载、面试评价
 - `admin_assignment_routes.py`：邀约创建、答题记录列表、详情/结果页、删除与二维码
 - `admin_monitor_routes.py`：系统日志、系统状态、告警清理/回填
 
