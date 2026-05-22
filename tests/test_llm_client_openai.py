@@ -16,32 +16,68 @@ class _FakeResponse:
 
 
 class _FakeResponsesResource:
-    def __init__(self, captured: dict, payload: dict):
+    def __init__(self, captured: dict, payload: dict, errors: list[Exception] | None = None):
         self._captured = captured
         self._payload = payload
+        self._errors = list(errors or [])
 
     def create(self, **kwargs):
         self._captured["request"] = kwargs
+        self._captured.setdefault("requests", []).append(kwargs)
+        self._captured["response_create_calls"] = int(self._captured.get("response_create_calls") or 0) + 1
+        if self._errors:
+            raise self._errors.pop(0)
         return _FakeResponse(self._payload)
 
 
 class _FakeFilesResource:
-    def __init__(self, captured: dict):
+    def __init__(self, captured: dict, statuses: list[str] | None = None):
         self._captured = captured
+        self._statuses = list(statuses or [])
+
+    def _next_status(self) -> str:
+        if self._statuses:
+            return str(self._statuses.pop(0) or "")
+        return ""
+
+    def _file_obj(self, file_id: str, status: str):
+        class _Uploaded:
+            id = file_id
+
+        if status:
+            _Uploaded.status = status
+        return _Uploaded()
 
     def create(self, *, file, purpose: str, **kwargs):  # noqa: ARG002
         self._captured["file_upload_purpose"] = purpose
         self._captured["file_upload_name"] = getattr(file, "name", "")
         self._captured["file_upload_bytes"] = file.read()
+        return self._file_obj("file-test-123", self._next_status())
 
-        class _Uploaded:
-            id = "file-test-123"
-
-        return _Uploaded()
+    def retrieve(self, file_id: str):
+        self._captured.setdefault("file_retrieved", []).append(file_id)
+        return self._file_obj(file_id, self._next_status())
 
     def delete(self, file_id: str):
         self._captured["file_deleted"] = file_id
         return {"id": file_id, "deleted": True}
+
+
+class _FileProcessingError(Exception):
+    code = "OperationDenied.InvalidState"
+    param = "file_id"
+    type = "Forbidden"
+    body = {
+        "error": {
+            "code": "OperationDenied.InvalidState",
+            "message": "The specified file file-test-123 is in invalid state: processing.",
+            "param": "file_id",
+            "type": "Forbidden",
+        }
+    }
+
+    def __str__(self):
+        return str(self.body)
 
 
 class _FakeOpenAI:
@@ -189,4 +225,86 @@ def test_llm_file_structured_uses_input_file_part(monkeypatch):
     assert client._captured["file_upload_purpose"] == "user_data"
     assert client._captured["file_upload_name"] == "resume.docx"
     assert client._captured["file_upload_bytes"] == b"resume-bytes"
+    assert client._captured["file_deleted"] == "file-test-123"
+
+
+def test_llm_file_structured_waits_until_uploaded_file_processed(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "structured-model")
+
+    llm = _reload_llm_modules()
+    client = _FakeOpenAI(api_key="test-key", base_url="https://example.test/v1", max_retries=2)
+    client._payload = {"output_text": '{"name":"张三"}', "model": "structured-model"}
+    client.responses = _FakeResponsesResource(client._captured, client._payload)
+    client.files = _FakeFilesResource(client._captured, statuses=["uploaded", "processing", "processed"])
+    monkeypatch.setattr(llm, "_get_openai_client", lambda: client)
+    monkeypatch.setattr(llm.time, "sleep", lambda *_args, **_kwargs: None)
+
+    raw, err = llm.call_llm_file_structured_ex(
+        file_bytes=b"resume-bytes",
+        filename="resume.pdf",
+        prompt="extract fields",
+        system="system-note",
+    )
+
+    assert err == ""
+    assert raw == '{"name":"张三"}'
+    assert client._captured["file_retrieved"] == ["file-test-123", "file-test-123"]
+    assert client._captured["response_create_calls"] == 1
+    assert client._captured["file_deleted"] == "file-test-123"
+
+
+def test_llm_file_structured_retries_response_when_file_is_still_processing(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "structured-model")
+
+    llm = _reload_llm_modules()
+    client = _FakeOpenAI(api_key="test-key", base_url="https://example.test/v1", max_retries=2)
+    client._payload = {"output_text": '{"name":"张三"}', "model": "structured-model"}
+    client.responses = _FakeResponsesResource(client._captured, client._payload, errors=[_FileProcessingError()])
+    client.files = _FakeFilesResource(client._captured, statuses=["processed", "processed"])
+    monkeypatch.setattr(llm, "_get_openai_client", lambda: client)
+    monkeypatch.setattr(llm.time, "sleep", lambda *_args, **_kwargs: None)
+
+    raw, err = llm.call_llm_file_structured_ex(
+        file_bytes=b"resume-bytes",
+        filename="resume.pdf",
+        prompt="extract fields",
+        system="system-note",
+    )
+
+    assert err == ""
+    assert raw == '{"name":"张三"}'
+    assert client._captured["response_create_calls"] == 2
+    assert client._captured["file_retrieved"] == ["file-test-123"]
+    assert client._captured["requests"][0]["input"][0]["content"][0]["file_id"] == "file-test-123"
+    assert client._captured["requests"][1]["input"][0]["content"][0]["file_id"] == "file-test-123"
+    assert client._captured["file_deleted"] == "file-test-123"
+
+
+def test_llm_file_structured_returns_timeout_when_uploaded_file_keeps_processing(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "structured-model")
+    monkeypatch.setenv("LLM_FILE_READY_TIMEOUT", "1")
+
+    llm = _reload_llm_modules()
+    client = _FakeOpenAI(api_key="test-key", base_url="https://example.test/v1", max_retries=2)
+    client.files = _FakeFilesResource(client._captured, statuses=["processing"])
+    monkeypatch.setattr(llm, "_get_openai_client", lambda: client)
+    times = iter([0.0, 0.0, 2.0])
+    monkeypatch.setattr(llm.time, "time", lambda: next(times, 2.0))
+
+    raw, err = llm.call_llm_file_structured_ex(
+        file_bytes=b"resume-bytes",
+        filename="resume.pdf",
+        prompt="extract fields",
+        system="system-note",
+    )
+
+    assert raw == ""
+    assert "模型服务仍在处理上传文件" in err
+    assert client._captured.get("response_create_calls") is None
     assert client._captured["file_deleted"] == "file-test-123"

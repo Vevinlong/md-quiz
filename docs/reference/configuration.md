@@ -84,11 +84,13 @@
 - `LLM_TIMEOUT_TEXT`
 - `LLM_TIMEOUT_STRUCTURED`
 - `LLM_TIMEOUT_VISION`
+- `LLM_FILE_READY_TIMEOUT`
 
 说明：
 
 - 当前 LLM 调用统一走 `backend/md_quiz/services/llm_client.py`
 - 底层使用 OpenAI Python SDK 的 `client.responses.create(...)`
+- `LLM_FILE_READY_TIMEOUT` 控制 PDF/DOCX 等附件上传后等待 Files API 处理完成的秒数，默认 30 秒
 - 只兼容 `chat/completions` 的平台，不能只改 `OPENAI_BASE_URL` 直接接入
 
 ### 简历解析高级参数

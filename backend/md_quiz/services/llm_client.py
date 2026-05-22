@@ -21,6 +21,9 @@ from backend.md_quiz.services.system_metrics import incr_llm_tokens_and_alert, r
 
 
 _OPENAI_CLIENT: OpenAI | None = None
+_FILE_READY_STATUSES = {"processed", "ready", "completed", "succeeded", "success"}
+_FILE_PENDING_STATUSES = {"uploaded", "processing", "pending", "queued", "in_progress"}
+_FILE_FAILED_STATUSES = {"error", "failed", "expired", "cancelled", "canceled"}
 
 
 def _as_dict(obj: Any) -> dict[str, Any]:
@@ -117,6 +120,17 @@ def _env_timeout(name: str, default: int) -> int:
     return max(5, min(600, n))
 
 
+def _env_file_ready_timeout() -> float:
+    v = str(os.getenv("LLM_FILE_READY_TIMEOUT", "") or "").strip()
+    if not v:
+        return 30.0
+    try:
+        n = float(v)
+    except Exception:
+        return 30.0
+    return max(1.0, min(300.0, n))
+
+
 def _env_max_retries() -> int:
     try:
         max_retries = int(os.getenv("LLM_RETRY_MAX", "2") or "2")
@@ -129,6 +143,69 @@ def _request_timeout(timeout_seconds: int) -> httpx.Timeout:
     total = float(max(5, int(timeout_seconds or 60)))
     connect = min(20.0, total)
     return httpx.Timeout(total, connect=connect, read=total, write=total)
+
+
+def _uploaded_file_status(obj: Any) -> str:
+    status = getattr(obj, "status", None)
+    if not isinstance(status, str) or not status.strip():
+        status = _as_dict(obj).get("status")
+    return str(status or "").strip().lower()
+
+
+def _wait_for_uploaded_file_ready(
+    client: Any,
+    file_id: str,
+    initial_obj: Any = None,
+    *,
+    force_check: bool = False,
+) -> None:
+    timeout_seconds = _env_file_ready_timeout()
+    deadline = time.time() + timeout_seconds
+    status = _uploaded_file_status(initial_obj)
+    if not status and force_check:
+        status = _uploaded_file_status(client.files.retrieve(file_id))
+    if not status:
+        return
+
+    interval = 0.5
+    while True:
+        if status in _FILE_READY_STATUSES:
+            return
+        if status in _FILE_FAILED_STATUSES:
+            raise RuntimeError(f"模型服务处理上传文件失败，当前状态：{status}")
+        if status not in _FILE_PENDING_STATUSES:
+            logger.debug("Unknown LLM uploaded file status: %s", status)
+            return
+
+        now = time.time()
+        if now >= deadline:
+            raise RuntimeError(
+                "模型服务仍在处理上传文件，等待超时，请稍后重试或调高 LLM_FILE_READY_TIMEOUT"
+            )
+        time.sleep(min(interval, max(0.0, deadline - now)))
+        current = client.files.retrieve(file_id)
+        status = _uploaded_file_status(current)
+        if not status:
+            return
+        interval = min(2.0, interval * 1.5)
+
+
+def _exception_search_text(exc: Exception) -> str:
+    parts = [str(exc)]
+    for attr in ("code", "param", "type", "body"):
+        val = getattr(exc, attr, None)
+        if val:
+            parts.append(str(val))
+    return " ".join(parts)
+
+
+def _is_file_processing_state_error(exc: Exception) -> bool:
+    text = _exception_search_text(exc).lower()
+    return (
+        ("operationdenied.invalidstate" in text or "invalid state" in text)
+        and "processing" in text
+        and ("file" in text or "file_id" in text)
+    )
 
 
 def _get_openai_client() -> OpenAI:
@@ -346,6 +423,7 @@ def call_llm_file_structured_ex(
         uploaded_file_id = str(getattr(uploaded, "id", "") or "").strip()
         if not uploaded_file_id:
             raise RuntimeError("Files API returned empty file id")
+        _wait_for_uploaded_file_ready(client, uploaded_file_id, uploaded)
         parts: list[dict[str, Any]] = [
             {
                 "type": "input_file",
@@ -353,15 +431,31 @@ def call_llm_file_structured_ex(
             },
             {"type": "input_text", "text": str(prompt or "")},
         ]
-        obj = _responses_api_request(
-            input_messages=[{"role": "user", "content": parts}],
-            instructions=system,
-            model=use_model,
-            temperature=0.0,
-            top_p=1.0,
-            timeout_seconds=_env_timeout("LLM_TIMEOUT_STRUCTURED", 120),
-            response_format_json=_supports_response_format_json(),
-        )
+        response_attempts = 3
+        obj = None
+        for attempt in range(response_attempts):
+            try:
+                obj = _responses_api_request(
+                    input_messages=[{"role": "user", "content": parts}],
+                    instructions=system,
+                    model=use_model,
+                    temperature=0.0,
+                    top_p=1.0,
+                    timeout_seconds=_env_timeout("LLM_TIMEOUT_STRUCTURED", 120),
+                    response_format_json=_supports_response_format_json(),
+                )
+                break
+            except Exception as e:
+                if attempt >= response_attempts - 1 or not _is_file_processing_state_error(e):
+                    raise
+                logger.info(
+                    "LLM uploaded file is still processing, retrying response call: %s",
+                    uploaded_file_id,
+                )
+                _wait_for_uploaded_file_ready(client, uploaded_file_id, force_check=True)
+                time.sleep(min(1.0, 0.3 * (attempt + 1)))
+        if obj is None:
+            raise RuntimeError("LLM response call returned empty result")
         dt = time.time() - start
         logger.debug("LLM(file-structured) ok in %.2fs", dt)
         _accumulate_llm_usage(obj)

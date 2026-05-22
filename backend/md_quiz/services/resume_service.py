@@ -545,7 +545,12 @@ def parse_resume_all_llm(*, data: bytes, filename: str, mime: str = "") -> dict[
     raw = str(raw or "").strip()
     if not raw:
         hint = str(err or "").strip() or "empty output"
-        if ext == ".docx" and ("file type not supported" in hint.lower() or "mime type" in hint.lower()):
+        hint_lower = hint.lower()
+        if "模型服务仍在处理上传文件" in hint:
+            raise RuntimeError("模型服务仍在处理上传文件，等待超时，请稍后重试或调高 LLM_FILE_READY_TIMEOUT")
+        if "operationdenied.invalidstate" in hint_lower and "processing" in hint_lower:
+            raise RuntimeError("模型服务仍在处理上传文件，请稍后重试；如频繁出现请调高 LLM_FILE_READY_TIMEOUT")
+        if ext == ".docx" and ("file type not supported" in hint_lower or "mime type" in hint_lower):
             raise RuntimeError("当前模型服务不支持 DOCX 附件直传解析，请改传 PDF 或图片，或切换支持 DOCX 文件输入的模型服务")
         raise RuntimeError(
             "LLM call failed: "
