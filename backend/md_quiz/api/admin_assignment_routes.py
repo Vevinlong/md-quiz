@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from . import admin as shared
 
@@ -15,6 +15,9 @@ router = APIRouter()
 def get_assignments(
     request: Request,
     q: str = "",
+    assignment_status: str = Query("", alias="status"),
+    handled: str = "",
+    quiz_key: str = "",
     start_from: str = "",
     start_to: str = "",
     end_from: str = "",
@@ -27,8 +30,18 @@ def get_assignments(
     invite_start_to = str(start_to or "").strip() or None
     invite_end_from = str(end_from or "").strip() or None
     invite_end_to = str(end_to or "").strip() or None
+    status_filter = shared.validation_helpers._normalize_exam_status(assignment_status)
+    if status_filter not in {"invited", "verified", "in_quiz", "grading", "finished", "expired"}:
+        status_filter = ""
+    handled_filter = str(handled or "").strip().lower()
+    if handled_filter not in {"handled", "unhandled"}:
+        handled_filter = ""
+    quiz_key_filter = str(quiz_key or "").strip() or None
     total = shared.deps.count_quiz_papers(
         query=q or None,
+        quiz_key=quiz_key_filter,
+        status_filter=status_filter or None,
+        handled_filter=handled_filter or None,
         invite_start_from=invite_start_from,
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
@@ -36,6 +49,9 @@ def get_assignments(
     )
     unhandled_finished_count = shared.deps.count_unhandled_finished_quiz_papers(
         query=q or None,
+        quiz_key=quiz_key_filter,
+        status_filter=status_filter or None,
+        handled_filter=handled_filter or None,
         invite_start_from=invite_start_from,
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
@@ -46,6 +62,9 @@ def get_assignments(
     offset = (current_page - 1) * per_page
     rows = shared.deps.list_quiz_papers(
         query=q or None,
+        quiz_key=quiz_key_filter,
+        status_filter=status_filter or None,
+        handled_filter=handled_filter or None,
         invite_start_from=invite_start_from,
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
@@ -64,6 +83,9 @@ def get_assignments(
         "total_pages": total_pages,
         "filters": {
             "q": str(q or "").strip(),
+            "status": status_filter,
+            "handled": handled_filter,
+            "quiz_key": str(quiz_key_filter or ""),
             "start_from": start_from,
             "start_to": start_to,
             "end_from": end_from,

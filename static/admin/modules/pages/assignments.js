@@ -544,6 +544,9 @@ export function createAdminAssignmentsModule() {
       const updatedItem = result?.item;
       if (updatedItem && typeof updatedItem === "object") {
         this.applyAssignmentItemUpdate(updatedItem);
+        if (this.route.name === "assignments" && this.filters.assignments.handled) {
+          await this.loadAssignments({ quiet: true, page: this.currentAssignmentsPage() });
+        }
       } else {
         await this.loadAssignments({ quiet: true });
         if (String(this.attemptDetail?.quiz_paper?.token || "").trim() === token) {
@@ -677,6 +680,36 @@ export function createAdminAssignmentsModule() {
       return classes.join(" ");
     },
 
+    assignmentFilterSegmentClass(active) {
+      const classes = [
+        "inline-flex h-7 flex-1 items-center justify-center rounded-md px-2 text-xs font-semibold transition",
+      ];
+      if (active) {
+        classes.push("bg-blue-600 text-white shadow-sm");
+      } else {
+        classes.push("text-slate-600 hover:bg-blue-50 hover:text-blue-700");
+      }
+      return classes.join(" ");
+    },
+
+    setAssignmentHandledFilter(value) {
+      const handled = String(value || "").trim().toLowerCase();
+      this.filters.assignments.handled = ["handled", "unhandled"].includes(handled) ? handled : "";
+      return this.reloadAssignmentsFromFirstPage();
+    },
+
+    resetAssignmentFilters() {
+      Object.assign(this.filters.assignments, {
+        q: "",
+        status: "",
+        handled: "",
+        quiz_key: "",
+        start_from: "",
+        end_to: "",
+      });
+      return this.reloadAssignmentsFromFirstPage();
+    },
+
     normalizeAssignmentsPage(page, fallback = 1) {
       const candidate = Number(page);
       const fallbackPage = Number(fallback);
@@ -797,6 +830,9 @@ export function createAdminAssignmentsModule() {
       const nextPage = this.normalizeAssignmentsPage(page, this.assignments?.page || 1);
       query.set("page", String(nextPage));
       if (this.filters.assignments.q) query.set("q", this.filters.assignments.q);
+      if (this.filters.assignments.status) query.set("status", this.filters.assignments.status);
+      if (this.filters.assignments.handled) query.set("handled", this.filters.assignments.handled);
+      if (this.filters.assignments.quiz_key) query.set("quiz_key", this.filters.assignments.quiz_key);
       if (this.filters.assignments.start_from) query.set("start_from", this.filters.assignments.start_from);
       if (this.filters.assignments.end_to) query.set("end_to", this.filters.assignments.end_to);
       const previousSnapshot = { ...(this.assignmentStatusSnapshot || {}) };

@@ -48,7 +48,7 @@ filters: {
   quizzes: { q: "" },
   quizAnalytics: { q: "", start_date: "", end_date: "" },
   candidates: { q: "" },
-  assignments: { q: "", start_from: sixDaysAgoYmd, end_to: todayYmd },
+  assignments: { q: "", status: "", handled: "", quiz_key: "", start_from: sixDaysAgoYmd, end_to: todayYmd },
 },
 syncForm: { repoUrl: "" },
 repoBinding: {},

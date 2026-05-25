@@ -2902,9 +2902,67 @@ WHERE quiz_key=%s AND quiz_version_id IS NULL
             return int(cur.rowcount or 0)
 
 
+def _append_quiz_paper_filters(
+    where: list[str],
+    params: list[Any],
+    *,
+    query: str | None = None,
+    quiz_key: str | None = None,
+    status_filter: str | None = None,
+    handled_filter: str | None = None,
+    invite_start_from: str | None = None,
+    invite_start_to: str | None = None,
+    invite_end_from: str | None = None,
+    invite_end_to: str | None = None,
+) -> None:
+    q = str(query or "").strip()
+    if q:
+        ql = f"%{q}%"
+        where.append("(c.name ILIKE %s OR ep.phone LIKE %s OR ep.quiz_key ILIKE %s OR ep.token ILIKE %s)")
+        params.extend([ql, ql, ql, ql])
+    quiz = str(quiz_key or "").strip()
+    if quiz:
+        where.append("ep.quiz_key = %s")
+        params.append(quiz)
+    status_key = str(status_filter or "").strip().lower()
+    if status_key == "expired":
+        where.append(
+            "ep.status IN ('invited'::quiz_paper_status, 'verified'::quiz_paper_status)"
+            " AND ep.entered_at IS NULL"
+            " AND ep.invite_end_date < CURRENT_DATE"
+        )
+    elif status_key in {"invited", "verified", "in_quiz", "grading", "finished"}:
+        where.append("ep.status = %s::quiz_paper_status")
+        params.append(status_key)
+        if status_key in {"invited", "verified"}:
+            where.append("NOT (ep.entered_at IS NULL AND ep.invite_end_date < CURRENT_DATE)")
+    handled_key = str(handled_filter or "").strip().lower()
+    if handled_key == "unhandled":
+        where.append("ep.status = 'finished'::quiz_paper_status")
+        where.append("ep.handled_at IS NULL")
+    elif handled_key == "handled":
+        where.append("ep.status = 'finished'::quiz_paper_status")
+        where.append("ep.handled_at IS NOT NULL")
+    if invite_start_from:
+        where.append("ep.invite_start_date >= %s::date")
+        params.append(str(invite_start_from).strip())
+    if invite_start_to:
+        where.append("ep.invite_start_date <= %s::date")
+        params.append(str(invite_start_to).strip())
+    if invite_end_from:
+        where.append("ep.invite_end_date >= %s::date")
+        params.append(str(invite_end_from).strip())
+    if invite_end_to:
+        where.append("ep.invite_end_date <= %s::date")
+        params.append(str(invite_end_to).strip())
+
+
 def list_quiz_papers(
     *,
     query: str | None = None,
+    quiz_key: str | None = None,
+    status_filter: str | None = None,
+    handled_filter: str | None = None,
     invite_start_from: str | None = None,
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
@@ -2937,23 +2995,18 @@ def list_quiz_papers(
   """
     params: list[Any] = []
     where: list[str] = []
-    q = str(query or "").strip()
-    if q:
-        ql = f"%{q}%"
-        where.append("(c.name ILIKE %s OR ep.phone LIKE %s OR ep.quiz_key ILIKE %s OR ep.token ILIKE %s)")
-        params.extend([ql, ql, ql, ql])
-    if invite_start_from:
-        where.append("ep.invite_start_date >= %s::date")
-        params.append(str(invite_start_from).strip())
-    if invite_start_to:
-        where.append("ep.invite_start_date <= %s::date")
-        params.append(str(invite_start_to).strip())
-    if invite_end_from:
-        where.append("ep.invite_end_date >= %s::date")
-        params.append(str(invite_end_from).strip())
-    if invite_end_to:
-        where.append("ep.invite_end_date <= %s::date")
-        params.append(str(invite_end_to).strip())
+    _append_quiz_paper_filters(
+        where,
+        params,
+        query=query,
+        quiz_key=quiz_key,
+        status_filter=status_filter,
+        handled_filter=handled_filter,
+        invite_start_from=invite_start_from,
+        invite_start_to=invite_start_to,
+        invite_end_from=invite_end_from,
+        invite_end_to=invite_end_to,
+    )
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += "\n ORDER BY ep.id DESC\n"
@@ -3923,6 +3976,9 @@ def list_system_log_daily_counts(
 def count_quiz_papers(
     *,
     query: str | None = None,
+    quiz_key: str | None = None,
+    status_filter: str | None = None,
+    handled_filter: str | None = None,
     invite_start_from: str | None = None,
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
@@ -3935,23 +3991,18 @@ def count_quiz_papers(
  """
     params: list[Any] = []
     where: list[str] = []
-    q = str(query or "").strip()
-    if q:
-        ql = f"%{q}%"
-        where.append("(c.name ILIKE %s OR ep.phone LIKE %s OR ep.quiz_key ILIKE %s OR ep.token ILIKE %s)")
-        params.extend([ql, ql, ql, ql])
-    if invite_start_from:
-        where.append("ep.invite_start_date >= %s::date")
-        params.append(str(invite_start_from).strip())
-    if invite_start_to:
-        where.append("ep.invite_start_date <= %s::date")
-        params.append(str(invite_start_to).strip())
-    if invite_end_from:
-        where.append("ep.invite_end_date >= %s::date")
-        params.append(str(invite_end_from).strip())
-    if invite_end_to:
-        where.append("ep.invite_end_date <= %s::date")
-        params.append(str(invite_end_to).strip())
+    _append_quiz_paper_filters(
+        where,
+        params,
+        query=query,
+        quiz_key=quiz_key,
+        status_filter=status_filter,
+        handled_filter=handled_filter,
+        invite_start_from=invite_start_from,
+        invite_start_to=invite_start_to,
+        invite_end_from=invite_end_from,
+        invite_end_to=invite_end_to,
+    )
     if where:
         sql += " WHERE " + " AND ".join(where)
     with conn_scope() as conn:
@@ -3963,6 +4014,9 @@ def count_quiz_papers(
 def count_unhandled_finished_quiz_papers(
     *,
     query: str | None = None,
+    quiz_key: str | None = None,
+    status_filter: str | None = None,
+    handled_filter: str | None = None,
     invite_start_from: str | None = None,
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
@@ -3975,23 +4029,18 @@ def count_unhandled_finished_quiz_papers(
  """
     params: list[Any] = []
     where: list[str] = ["ep.status = 'finished'::quiz_paper_status", "ep.handled_at IS NULL"]
-    q = str(query or "").strip()
-    if q:
-        ql = f"%{q}%"
-        where.append("(c.name ILIKE %s OR ep.phone LIKE %s OR ep.quiz_key ILIKE %s OR ep.token ILIKE %s)")
-        params.extend([ql, ql, ql, ql])
-    if invite_start_from:
-        where.append("ep.invite_start_date >= %s::date")
-        params.append(str(invite_start_from).strip())
-    if invite_start_to:
-        where.append("ep.invite_start_date <= %s::date")
-        params.append(str(invite_start_to).strip())
-    if invite_end_from:
-        where.append("ep.invite_end_date >= %s::date")
-        params.append(str(invite_end_from).strip())
-    if invite_end_to:
-        where.append("ep.invite_end_date <= %s::date")
-        params.append(str(invite_end_to).strip())
+    _append_quiz_paper_filters(
+        where,
+        params,
+        query=query,
+        quiz_key=quiz_key,
+        status_filter=status_filter,
+        handled_filter=handled_filter,
+        invite_start_from=invite_start_from,
+        invite_start_to=invite_start_to,
+        invite_end_from=invite_end_from,
+        invite_end_to=invite_end_to,
+    )
     sql += " WHERE " + " AND ".join(where)
     with conn_scope() as conn:
         with conn.cursor() as cur:

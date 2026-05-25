@@ -33,6 +33,7 @@ from backend.md_quiz.storage.db import (
     save_assignment_record,
     save_quiz_definition,
     set_exam_public_invite,
+    set_quiz_paper_handling,
     set_quiz_paper_entered_at,
     set_runtime_kv,
     update_quiz_paper_result,
@@ -2239,6 +2240,83 @@ def test_admin_assignments_list_exposes_invite_urls_and_end_date_filters(monkeyp
     assert item["source_kind"] == "direct"
     assert item["source_label"] == "主动邀约"
     assert item["needs_attention"] is False
+
+
+def test_admin_assignments_list_supports_status_handling_and_quiz_filters(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    version_a = _seed_exam_with_metadata("assignment-filter-demo")
+    version_b = _seed_exam_with_metadata("assignment-filter-other")
+    candidate_id = create_candidate("筛选候选人", "13900000021")
+    create_quiz_paper(
+        candidate_id=candidate_id,
+        phone="13900000021",
+        quiz_key="assignment-filter-demo",
+        quiz_version_id=version_a,
+        token="filter-unhandled",
+        invite_start_date="2026-05-20",
+        invite_end_date="2026-05-30",
+        status="finished",
+    )
+    create_quiz_paper(
+        candidate_id=candidate_id,
+        phone="13900000021",
+        quiz_key="assignment-filter-demo",
+        quiz_version_id=version_a,
+        token="filter-handled",
+        invite_start_date="2026-05-20",
+        invite_end_date="2026-05-30",
+        status="finished",
+    )
+    set_quiz_paper_handling("filter-handled", handled=True, handled_by="admin")
+    create_quiz_paper(
+        candidate_id=candidate_id,
+        phone="13900000021",
+        quiz_key="assignment-filter-demo",
+        quiz_version_id=version_a,
+        token="filter-active",
+        invite_start_date="2026-05-20",
+        invite_end_date="2026-05-30",
+        status="in_quiz",
+    )
+    create_quiz_paper(
+        candidate_id=candidate_id,
+        phone="13900000021",
+        quiz_key="assignment-filter-other",
+        quiz_version_id=version_b,
+        token="filter-other",
+        invite_start_date="2026-05-20",
+        invite_end_date="2026-05-30",
+        status="finished",
+    )
+
+    _admin_login(client)
+
+    unhandled_response = client.get(
+        "/api/admin/assignments?quiz_key=assignment-filter-demo&status=finished&handled=unhandled"
+    )
+    handled_response = client.get(
+        "/api/admin/assignments?quiz_key=assignment-filter-demo&status=finished&handled=handled"
+    )
+    active_response = client.get("/api/admin/assignments?quiz_key=assignment-filter-demo&status=in_quiz")
+
+    assert unhandled_response.status_code == 200
+    assert handled_response.status_code == 200
+    assert active_response.status_code == 200
+
+    unhandled_payload = unhandled_response.json()
+    assert unhandled_payload["filters"]["quiz_key"] == "assignment-filter-demo"
+    assert unhandled_payload["filters"]["status"] == "finished"
+    assert unhandled_payload["filters"]["handled"] == "unhandled"
+    assert unhandled_payload["summary"]["unhandled_finished_count"] == 1
+    assert [item["token"] for item in unhandled_payload["items"]] == ["filter-unhandled"]
+
+    handled_payload = handled_response.json()
+    assert handled_payload["summary"]["unhandled_finished_count"] == 0
+    assert [item["token"] for item in handled_payload["items"]] == ["filter-handled"]
+
+    active_payload = active_response.json()
+    assert active_payload["filters"]["status"] == "in_quiz"
+    assert [item["token"] for item in active_payload["items"]] == ["filter-active"]
 
 
 def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tmp_path):

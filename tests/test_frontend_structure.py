@@ -59,12 +59,19 @@ def test_admin_assignments_page_exposes_pagination_controls() -> None:
     assert "上一页" in source
     assert "下一页" in source
     assert "末页" in source
+    assert "filters.assignments.status" in source
+    assert "filters.assignments.quiz_key" in source
+    assert "setAssignmentHandledFilter" in source
+    assert "resetAssignmentFilters" in source
 
 
 def test_admin_assignments_module_uses_page_query_param() -> None:
     source = (ROOT / "static" / "admin" / "modules" / "pages" / "assignments.js").read_text(encoding="utf-8")
 
     assert 'query.set("page"' in source
+    assert 'query.set("status"' in source
+    assert 'query.set("handled"' in source
+    assert 'query.set("quiz_key"' in source
     assert "scheduleAssignmentsReloadFromFirstPage" in source
 
 
@@ -97,6 +104,8 @@ def test_admin_candidates_page_exposes_attempt_summary() -> None:
     assert "最近试卷" not in html_source
     assert "attempt_summary" in js_source
     assert "attempt_summaries" in js_source
+    assert 'score !== "-"' in js_source
+    assert 'summary.completed || Boolean(score && score !== "-")' not in js_source
     assert "正在答题" in js_source
     assert "正在判卷" in js_source
 

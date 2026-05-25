@@ -285,7 +285,7 @@ export function createAdminCandidatesModule() {
     candidateAttemptShowScore(summary) {
       if (!this.candidateAttemptHasSummary(summary)) return false;
       const score = String(summary.score_display || "").trim();
-      return summary.completed || Boolean(score && score !== "-");
+      return Boolean(score && score !== "-");
     },
 
     candidateAttemptScoreLabel(summary) {
