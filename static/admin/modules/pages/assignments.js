@@ -477,6 +477,23 @@ export function createAdminAssignmentsModule() {
       return parts.join(" · ");
     },
 
+    assignmentQuizKey(item) {
+      return String(item?.quiz_key || "").trim();
+    },
+
+    assignmentQuizTitle(item) {
+      const quizKey = this.assignmentQuizKey(item);
+      const directTitle = String(item?.quiz_title || item?.quiz_name || "").trim();
+      if (directTitle) return directTitle;
+      const matched = (this.quizzes?.items || []).find((quiz) => String(quiz?.quiz_key || "").trim() === quizKey);
+      return String(matched?.title || "").trim() || quizKey || "未知测验";
+    },
+
+    assignmentQuizKeyTitle(item) {
+      const quizKey = this.assignmentQuizKey(item);
+      return quizKey || "暂无编号";
+    },
+
     formatAnswerTime(seconds) {
       const value = Number(seconds || 0);
       if (!Number.isFinite(value) || value <= 0) {
@@ -505,6 +522,12 @@ export function createAdminAssignmentsModule() {
 
     async copyAssignmentUrl(item) {
       await this.copyText(item?.url, "邀约链接已复制");
+    },
+
+    async copyAssignmentQuizKey(item) {
+      const quizKey = this.assignmentQuizKey(item);
+      if (!quizKey) return;
+      await this.copyText(quizKey, "编号已复制");
     },
 
     async copyAssignmentQr(item) {

@@ -59,7 +59,7 @@
               <div class="mt-0.5 font-mono text-xs leading-5 text-slate-500" x-text="item.phone"></div>
               <div class="font-mono text-[11px] leading-5 tabular-nums text-slate-400" x-text="formatDateTime(item.created_at)"></div>
             </div>
-            <div class="grid min-w-0 gap-1 md:col-span-2 md:justify-start">
+            <div class="grid min-w-0 gap-1 md:col-span-2 md:justify-start md:pl-5">
               <template x-for="summary in candidateAttemptDisplayRows(item)" :key="summary.token || summary.quiz_key || item.id">
                 <div class="grid min-w-0 gap-1.5 md:w-fit md:max-w-full md:grid-cols-[minmax(12rem,max-content)_auto] md:items-center md:gap-4">
                   <div class="min-w-0 text-sm leading-5 text-slate-700 md:min-w-[14rem]">

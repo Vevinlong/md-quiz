@@ -131,7 +131,21 @@
                         </div>
                       </div>
                       <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                        <span class="rounded-full bg-slate-100 px-2.5 py-1" x-text="item.quiz_key"></span>
+                        <span
+                          class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1"
+                          :title="assignmentQuizKeyTitle(item)"
+                        >
+                          <span class="min-w-0 truncate" x-text="assignmentQuizTitle(item)"></span>
+                          <button
+                            @click.stop="copyAssignmentQuizKey(item)"
+                            type="button"
+                            class="-mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/70 hover:text-slate-400"
+                            :title="assignmentQuizKeyTitle(item)"
+                            aria-label="复制编号"
+                          >
+                            <span class="material-symbols-rounded text-[14px] leading-none">content_copy</span>
+                          </button>
+                        </span>
                         <span class="rounded-full bg-slate-100 px-2.5 py-1">得分 <strong x-text="item.score_display || '-'"></strong></span>
                         <span class="rounded-full bg-slate-100 px-2.5 py-1">开始 <strong x-text="formatDate(item.invite_start_date) || '-'"></strong></span>
                         <span class="rounded-full bg-slate-100 px-2.5 py-1">结束 <strong x-text="formatDate(item.invite_end_date) || '-'"></strong></span>
