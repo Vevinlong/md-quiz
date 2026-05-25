@@ -113,6 +113,8 @@ postgresql+psycopg2://admin:pasword@127.0.0.1:5433/md_quiz
 ./scripts/dev/devctl.sh logs
 ```
 
+`devctl` 每次实际启动已停止进程前，会把已有的非空日志归档到 `tmp/logs/archive/<timestamp>/`，新进程继续写入 `tmp/logs/api.log`、`tmp/logs/worker.log`、`tmp/logs/scheduler.log`。
+
 单进程调试：
 
 ```bash

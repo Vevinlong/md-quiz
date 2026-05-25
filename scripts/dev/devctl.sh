@@ -11,12 +11,14 @@ fi
 
 PID_DIR="tmp/pids"
 LOG_DIR="tmp/logs"
+LOG_ARCHIVE_BASE_DIR="${LOG_DIR}/archive"
 API_PID_FILE="${PID_DIR}/api.pid"
 WORKER_PID_FILE="${PID_DIR}/worker.pid"
 SCHED_PID_FILE="${PID_DIR}/scheduler.pid"
 API_LOG_FILE="${LOG_DIR}/api.log"
 WORKER_LOG_FILE="${LOG_DIR}/worker.log"
 SCHED_LOG_FILE="${LOG_DIR}/scheduler.log"
+LOG_ARCHIVE_RUN_DIR=""
 
 mkdir -p "$PID_DIR" "$LOG_DIR"
 
@@ -106,6 +108,32 @@ write_pid() {
   echo -n "$pid" >"$file"
 }
 
+ensure_log_archive_dir() {
+  if [[ -n "$LOG_ARCHIVE_RUN_DIR" ]]; then
+    return 0
+  fi
+  local timestamp dir suffix
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  dir="${LOG_ARCHIVE_BASE_DIR}/${timestamp}"
+  suffix=1
+  while [[ -e "$dir" ]]; do
+    suffix=$((suffix + 1))
+    dir="${LOG_ARCHIVE_BASE_DIR}/${timestamp}-${suffix}"
+  done
+  mkdir -p "$dir"
+  LOG_ARCHIVE_RUN_DIR="$dir"
+}
+
+archive_log_file() {
+  local log_file="$1"
+  if [[ ! -s "$log_file" ]]; then
+    return 0
+  fi
+  ensure_log_archive_dir
+  mv "$log_file" "${LOG_ARCHIVE_RUN_DIR}/$(basename "$log_file")"
+  echo "[dev] archived previous log ${log_file} -> ${LOG_ARCHIVE_RUN_DIR}/"
+}
+
 is_running() {
   local pid="${1:-}"
   if [[ -z "${pid:-}" ]]; then
@@ -125,7 +153,7 @@ start_one() {
     echo "[${name}] already running pid=${existing}"
     return 0
   fi
-  : >"$log_file"
+  archive_log_file "$log_file"
   nohup "$@" >>"$log_file" 2>&1 &
   local pid="$!"
   write_pid "$pid_file" "$pid"
