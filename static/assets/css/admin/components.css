@@ -157,7 +157,11 @@
 
   .admin-subsurface {
     border-color: rgba(37, 99, 235, 0.12);
-    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+    box-shadow: none;
+  }
+
+  .admin-edge-panel {
+    overflow: hidden;
   }
 
   .admin-header-meta__pill,
@@ -883,6 +887,10 @@
     padding: 1rem;
     box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
     backdrop-filter: blur(12px);
+  }
+
+  .admin-surface.admin-edge-panel {
+    padding: 0;
   }
 
   .admin-subsurface.admin-subsurface {

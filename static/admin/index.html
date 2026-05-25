@@ -41,24 +41,24 @@
       <section x-show="session.authenticated" x-cloak class="admin-shell mx-auto flex max-w-[1700px] gap-4">
           <aside class="admin-shell__aside hidden w-64 shrink-0 md:block">
             <div class="admin-surface admin-sidebar-surface sticky top-6 rounded-3xl border border-white/70 bg-white/78 p-4 shadow-[var(--admin-shadow)] backdrop-blur-xl">
-              <div class="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-emerald-500 px-4 py-4 text-white">
+              <div class="flex items-center gap-3 border-b border-blue-100/70 px-2 pb-4 pt-1">
                 <img
                   src="/static/logo.png"
                   alt="MD Quiz"
-                  class="h-11 w-11 shrink-0 rounded-2xl bg-white/14 object-contain p-1.5 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+                  class="h-11 w-11 shrink-0 rounded-xl bg-blue-50 object-contain p-1.5"
                 />
                 <div>
-                  <div class="text-xs uppercase tracking-[0.18em] text-white/75">MD Quiz</div>
-                  <div class="text-lg font-semibold">Admin Shell</div>
+                  <div class="text-xs uppercase tracking-[0.18em] text-slate-500">MD Quiz</div>
+                  <div class="text-lg font-semibold tracking-[-0.02em] text-slate-900">Admin Shell</div>
                 </div>
               </div>
-              <nav class="mt-4 space-y-2">
+              <nav class="mt-3 space-y-1">
                 <template x-for="item in navItems" :key="item.href">
                   <button
                     type="button"
                     @click="go(item.href)"
-                    :class="isPrimaryNavItemActive(item.href) ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white/85 text-slate-600 hover:bg-blue-50 hover:text-blue-700'"
-                    class="admin-sidebar-nav__item flex w-full items-center justify-between rounded-2xl border border-blue-100/80 px-4 py-3 text-left text-sm font-medium transition"
+                    :class="isPrimaryNavItemActive(item.href) ? 'bg-blue-50 text-blue-700 before:bg-blue-600' : 'text-slate-600 before:bg-transparent hover:bg-blue-50/70 hover:text-blue-700'"
+                    class="admin-sidebar-nav__item relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition before:absolute before:left-0 before:bottom-2 before:top-2 before:w-1 before:rounded-full"
                   >
                     <span class="flex items-center gap-3">
                       <template x-if="item.iconKind === 'mcp'">
@@ -80,7 +80,7 @@
               <button
                 type="button"
                 @click="logout"
-                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               >
                 <span class="material-symbols-rounded text-base">logout</span>
                 退出登录
