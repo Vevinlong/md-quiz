@@ -24,8 +24,12 @@ export function createAdminShellModule() {
         return;
       }
       if (!this.adminCompactScrollHandler) {
-        this.adminCompactScrollHandler = () => this.updateAdminCompactTabsStickyState();
+        this.adminCompactScrollHandler = () => this.updateAdminStickyLayoutState();
         window.addEventListener("scroll", this.adminCompactScrollHandler, { passive: true });
+      }
+      if (!this.adminRightStackResizeHandler) {
+        this.adminRightStackResizeHandler = () => this.updateAdminRightStackStickyOffsets();
+        window.addEventListener("resize", this.adminRightStackResizeHandler, { passive: true });
       }
       if (!this.adminCompactMediaQuery) {
         this.adminCompactMediaQuery = window.matchMedia(ADMIN_COMPACT_BREAKPOINT_QUERY);
@@ -52,7 +56,7 @@ export function createAdminShellModule() {
           this.destroyLogsChart();
         }
       }
-      this.updateAdminCompactTabsStickyState();
+      this.updateAdminStickyLayoutState();
     },
 
     adminCompactTabConfig(routeName) {
@@ -96,6 +100,11 @@ export function createAdminShellModule() {
       return this.isAdminCompactLayout && this.adminCompactTabs(routeName).length > 0;
     },
 
+    updateAdminStickyLayoutState() {
+      this.updateAdminCompactTabsStickyState();
+      this.updateAdminRightStackStickyOffsets();
+    },
+
     updateAdminCompactTabsStickyState() {
       if (typeof window === "undefined" || typeof document === "undefined") {
         return;
@@ -110,6 +119,27 @@ export function createAdminShellModule() {
         const rect = node.getBoundingClientRect();
         const isStuck = Boolean(isVisible && window.scrollY > 0 && rect.top <= stickyTop + 1);
         node.dataset.stuck = String(isStuck);
+      }
+    },
+
+    updateAdminRightStackStickyOffsets() {
+      if (typeof window === "undefined" || typeof document === "undefined") {
+        return;
+      }
+      const nodes = Array.from(document.querySelectorAll(".admin-right-pane--stack"));
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+      const gap = 24;
+      for (const node of nodes) {
+        if (!(node instanceof HTMLElement)) {
+          continue;
+        }
+        if (!node.getClientRects().length || viewportHeight <= 0) {
+          node.style.removeProperty("--admin-right-pane-stack-top");
+          continue;
+        }
+        const height = Math.ceil(node.getBoundingClientRect().height || node.scrollHeight || 0);
+        const stickyTop = Math.min(gap, viewportHeight - height - gap);
+        node.style.setProperty("--admin-right-pane-stack-top", `${Math.round(stickyTop)}px`);
       }
     },
 
@@ -141,7 +171,7 @@ export function createAdminShellModule() {
       if (scroll && this.isAdminCompactLayout) {
         this.scrollAdminCompactTabsIntoView(key);
       }
-      this.updateAdminCompactTabsStickyState();
+      this.updateAdminStickyLayoutState();
     },
 
     resetAdminCompactTab(routeName) {

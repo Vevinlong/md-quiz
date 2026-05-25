@@ -258,7 +258,7 @@ export function createAdminRouterModule() {
           break;
       }
       await this.$nextTick();
-      this.updateAdminCompactTabsStickyState();
+      this.updateAdminStickyLayoutState();
     },
 
     async go(path) {

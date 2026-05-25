@@ -309,15 +309,9 @@
 
     .admin-right-pane--stack {
       position: sticky;
-      top: 1.5rem;
+      top: var(--admin-right-pane-stack-top, 1.5rem);
       align-self: flex-start;
-      height: calc(100vh - 3rem);
-      max-height: calc(100vh - 3rem);
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-      padding-right: 0.35rem;
-      margin-right: -0.35rem;
+      overflow: visible;
     }
 
     .admin-sticky-aside__body,
@@ -339,8 +333,7 @@
       }
 
       .admin-right-pane--stack {
-        height: calc(100dvh - 3rem);
-        max-height: calc(100dvh - 3rem);
+        max-height: none;
       }
     }
   }
