@@ -38,7 +38,16 @@
                       <div class="text-sm font-semibold text-slate-900" x-text="item.type_label"></div>
                       <div class="mt-1 text-sm leading-6 text-slate-700" x-text="item.detail_text"></div>
                     </div>
-                    <div class="font-mono text-xs text-slate-500 sm:pt-0.5 sm:text-right" x-text="item.at_display"></div>
+                    <div class="font-mono text-xs text-slate-500 sm:pt-0.5 sm:text-right">
+                      <template x-if="item.has_time_range">
+                        <div class="space-y-1">
+                          <div><span class="text-slate-400">开始</span> <span x-text="item.started_at_display"></span></div>
+                          <div><span class="text-slate-400">结束</span> <span x-text="item.finished_at_display"></span></div>
+                          <div x-show="item.duration_display"><span class="text-slate-400">用时</span> <span x-text="item.duration_display"></span></div>
+                        </div>
+                      </template>
+                      <div x-show="!item.has_time_range" x-text="item.at_display"></div>
+                    </div>
                   </div>
                 </template>
                 <div x-show="!(logs.items || []).length" class="px-4 py-10 text-center text-sm text-slate-500">

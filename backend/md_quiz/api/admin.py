@@ -136,6 +136,32 @@ def _iso_to_local_display(value: str) -> str:
         return raw
 
 
+def _parse_log_datetime(value: Any) -> datetime | None:
+    raw = _iso_or_empty(value)
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _log_duration_display(seconds: Any) -> str:
+    try:
+        total = max(0, int(seconds))
+    except Exception:
+        return ""
+    if total < 60:
+        return f"{total}秒"
+    minutes, second = divmod(total, 60)
+    if minutes < 60:
+        if second:
+            return f"{minutes}分{second:02d}秒"
+        return f"{minutes}分"
+    hours, minute = divmod(minutes, 60)
+    return f"{hours}小时{minute:02d}分"
+
+
 def _score_display(score: Any, score_max: Any, *, result_mode: str = "") -> str:
     mode = str(result_mode or "").strip().lower()
     if mode == "traits":
@@ -1007,10 +1033,25 @@ def _serialize_log_row(row: dict[str, Any]) -> dict[str, Any]:
     if type_key == "exam":
         type_key = "quiz"
     detail_text = system_status_helpers._oplog_detail_text_v2(dict(row))
+    started_at = _iso_or_empty(row.get("started_at"))
+    finished_at = _iso_or_empty(row.get("finished_at"))
+    started_dt = _parse_log_datetime(started_at)
+    finished_dt = _parse_log_datetime(finished_at)
+    has_time_range = bool(started_dt and finished_dt)
+    duration_seconds = _coerce_int_or_none(row.get("duration_seconds"))
+    if duration_seconds is None and has_time_range:
+        try:
+            duration_seconds = max(0, int((finished_dt - started_dt).total_seconds()))
+        except Exception:
+            duration_seconds = None
     return {
         "id": int(row.get("id") or 0),
         "at": _iso_or_empty(row.get("at")),
         "at_display": _iso_to_local_display(_iso_or_empty(row.get("at"))),
+        "started_at": started_at if started_dt else "",
+        "started_at_display": _iso_to_local_display(started_at) if started_dt else "",
+        "finished_at": finished_at if finished_dt else "",
+        "finished_at_display": _iso_to_local_display(finished_at) if finished_dt else "",
         "actor": str(row.get("actor") or "").strip(),
         "event_type": event_type,
         "candidate_id": row.get("candidate_id"),
@@ -1019,7 +1060,9 @@ def _serialize_log_row(row: dict[str, Any]) -> dict[str, Any]:
         "quiz_key": str(row.get("quiz_key") or "").strip(),
         "token": str(row.get("token") or "").strip(),
         "llm_total_tokens": row.get("llm_total_tokens"),
-        "duration_seconds": row.get("duration_seconds"),
+        "duration_seconds": duration_seconds,
+        "duration_display": _log_duration_display(duration_seconds) if has_time_range else "",
+        "has_time_range": has_time_range,
         "meta": row.get("meta") or {},
         "type_key": type_key,
         "type_label": type_label,

@@ -128,6 +128,9 @@ def _finalize_public_submission(token: str, assignment: dict, *, now: datetime) 
             candidate_id=(cid2 if cid2 > 0 else None),
             quiz_key=(ek2 or None),
             token=(str(token or "").strip() or None),
+            started_at=started_at,
+            finished_at=submitted_at,
+            duration_seconds=duration_seconds,
             meta={
                 "name": name2,
                 "phone": phone2,
@@ -216,6 +219,11 @@ def _sync_grade_side_effects(
             score2 = int((grading or {}).get("total") or 0)
         except Exception:
             score2 = 0
+        grading_started_at = None
+        grading_finished_at = None
+        if isinstance(grading, dict):
+            grading_started_at = _parse_iso_dt(str(grading.get("started_at") or "").strip())
+            grading_finished_at = _parse_iso_dt(str(grading.get("finished_at") or "").strip())
         try:
             log_event(
                 "exam.grade",
@@ -224,6 +232,8 @@ def _sync_grade_side_effects(
                 quiz_key=(ek2 or None),
                 token=(str(token or "").strip() or None),
                 llm_total_tokens=(int(grading_llm_total_tokens or 0) or None),
+                started_at=grading_started_at,
+                finished_at=grading_finished_at,
                 meta={"score": score2, "public_invite": bool((assignment or {}).get("public_invite"))},
             )
         except Exception:

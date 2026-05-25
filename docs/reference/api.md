@@ -217,6 +217,10 @@
 
 返回系统日志列表、分类计数，以及近 N 天的分类趋势序列。
 
+日志条目保留 `at`/`at_display` 作为单点时间；当条目包含完整起止时间时，会额外返回
+`started_at`、`started_at_display`、`finished_at`、`finished_at_display`、`duration_display` 和
+`has_time_range=true`。
+
 ### `GET /api/admin/logs/updates`
 
 按 `after_id` 返回增量日志。

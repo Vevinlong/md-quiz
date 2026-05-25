@@ -136,6 +136,32 @@ def _iso_or_none(raw: Any) -> str | None:
     return text or None
 
 
+def _log_time_or_none(raw: Any) -> datetime | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw
+    try:
+        return datetime.fromisoformat(str(raw).strip().replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _log_duration_seconds_or_none(
+    duration_seconds: int | None,
+    started_at: datetime | None,
+    finished_at: datetime | None,
+) -> int | None:
+    if duration_seconds is not None:
+        return max(0, int(duration_seconds))
+    if not started_at or not finished_at:
+        return None
+    try:
+        return max(0, int((finished_at - started_at).total_seconds()))
+    except Exception:
+        return None
+
+
 def init_db() -> None:
     """
     Create/upgrade required DB objects.
@@ -811,6 +837,8 @@ ALTER TABLE candidate DROP COLUMN IF EXISTS duration_seconds;
     llm_prompt_tokens INT NULL,
     llm_completion_tokens INT NULL,
     llm_total_tokens INT NULL,
+    started_at TIMESTAMPTZ NULL,
+    finished_at TIMESTAMPTZ NULL,
     duration_seconds INT NULL,
     ip TEXT NULL,
     user_agent TEXT NULL,
@@ -828,6 +856,8 @@ ALTER TABLE candidate DROP COLUMN IF EXISTS duration_seconds;
       EXECUTE 'ALTER TABLE system_log RENAME COLUMN exam_key TO quiz_key';
     END IF;
   END$$;
+  ALTER TABLE system_log ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NULL;
+  ALTER TABLE system_log ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ NULL;
   CREATE INDEX IF NOT EXISTS idx_system_log_at ON system_log(at);
   CREATE INDEX IF NOT EXISTS idx_system_log_event_type ON system_log(event_type);
   CREATE INDEX IF NOT EXISTS idx_system_log_candidate_id ON system_log(candidate_id);
@@ -3069,18 +3099,24 @@ def create_system_log(
     llm_prompt_tokens: int | None = None,
     llm_completion_tokens: int | None = None,
     llm_total_tokens: int | None = None,
+    started_at: datetime | str | None = None,
+    finished_at: datetime | str | None = None,
     duration_seconds: int | None = None,
     ip: str | None = None,
     user_agent: str | None = None,
     meta: dict[str, Any] | None = None,
 ) -> int:
+    started_dt = _log_time_or_none(started_at)
+    finished_dt = _log_time_or_none(finished_at)
+    duration_value = _log_duration_seconds_or_none(duration_seconds, started_dt, finished_dt)
     sql = """
  INSERT INTO system_log(
    actor, event_type, candidate_id, quiz_key, token,
-   llm_prompt_tokens, llm_completion_tokens, llm_total_tokens, duration_seconds,
+   llm_prompt_tokens, llm_completion_tokens, llm_total_tokens,
+   started_at, finished_at, duration_seconds,
    ip, user_agent, meta
  )
- VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
  RETURNING id
  """
     meta_param = None
@@ -3099,7 +3135,9 @@ def create_system_log(
                     (int(llm_prompt_tokens) if llm_prompt_tokens is not None else None),
                     (int(llm_completion_tokens) if llm_completion_tokens is not None else None),
                     (int(llm_total_tokens) if llm_total_tokens is not None else None),
-                    (int(duration_seconds) if duration_seconds is not None else None),
+                    started_dt,
+                    finished_dt,
+                    duration_value,
                     (str(ip).strip() if ip else None),
                     (str(user_agent).strip() if user_agent else None),
                     meta_param,
@@ -3278,6 +3316,8 @@ def list_system_logs(
    sl.llm_prompt_tokens,
    sl.llm_completion_tokens,
    sl.llm_total_tokens,
+   sl.started_at,
+   sl.finished_at,
    sl.duration_seconds,
    sl.ip,
    sl.user_agent,
@@ -3352,6 +3392,8 @@ def list_operation_logs(*, limit: int = 50, offset: int = 0) -> list[dict[str, A
     sl.llm_prompt_tokens,
     sl.llm_completion_tokens,
     sl.llm_total_tokens,
+    sl.started_at,
+    sl.finished_at,
     sl.duration_seconds,
     sl.meta
   FROM system_log sl
@@ -3398,6 +3440,8 @@ def list_operation_logs_after_id(*, after_id: int, limit: int = 50) -> list[dict
     sl.llm_prompt_tokens,
     sl.llm_completion_tokens,
     sl.llm_total_tokens,
+    sl.started_at,
+    sl.finished_at,
     sl.duration_seconds,
     sl.meta
   FROM system_log sl

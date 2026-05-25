@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from backend.md_quiz.api import admin as admin_api
 from backend.md_quiz.api import public as public_api
 from backend.md_quiz.app import create_app
-from backend.md_quiz.services import candidate_resume_admin_service, system_status_helpers
+from backend.md_quiz.services import candidate_resume_admin_service, runtime_jobs, system_status_helpers
 from backend.md_quiz.services.job_service import JobService
 from backend.md_quiz.services.system_log import log_event
 from backend.md_quiz.storage import JobStore
@@ -841,6 +841,100 @@ def test_admin_logs_mask_candidate_phone_in_detail_text(monkeypatch, tmp_path):
     assert item["candidate_phone"] == "135****0123"
     assert "135****0123" in item["detail_text"]
     assert "13570020123" not in item["detail_text"]
+
+
+def test_admin_logs_expose_range_fields_and_keep_single_point_logs(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+
+    candidate_id = create_candidate(name="时间范围候选人", phone="13570029999")
+    started_at = datetime(2026, 5, 25, 6, 0, 0, tzinfo=timezone.utc)
+    finished_at = started_at + timedelta(minutes=8, seconds=22)
+    log_event(
+        "exam.finish",
+        actor="candidate",
+        candidate_id=candidate_id,
+        quiz_key="range-demo",
+        token="range-token",
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    log_event(
+        "assignment.create",
+        actor="admin",
+        candidate_id=candidate_id,
+        quiz_key="range-demo",
+        token="single-point-token",
+    )
+
+    response = client.get("/api/admin/logs")
+
+    assert response.status_code == 200
+    payload = response.json()
+    range_item = next(row for row in payload["items"] if row["event_type"] == "exam.finish")
+    assert range_item["has_time_range"] is True
+    assert range_item["started_at"] == started_at.isoformat()
+    assert range_item["finished_at"] == finished_at.isoformat()
+    assert range_item["duration_seconds"] == 502
+    assert range_item["duration_display"] == "8分22秒"
+    assert range_item["started_at_display"]
+    assert range_item["finished_at_display"]
+
+    single_item = next(row for row in payload["items"] if row["event_type"] == "assignment.create")
+    assert single_item["has_time_range"] is False
+    assert single_item["started_at"] == ""
+    assert single_item["finished_at"] == ""
+    assert single_item["duration_display"] == ""
+    assert single_item["at_display"]
+
+    updates_response = client.get("/api/admin/logs/updates?after_id=0")
+    assert updates_response.status_code == 200
+    update_item = next(row for row in updates_response.json()["items"] if row["event_type"] == "exam.finish")
+    assert update_item["has_time_range"] is True
+    assert update_item["duration_display"] == "8分22秒"
+
+
+def test_exam_finish_log_uses_assignment_timing_range(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+
+    quiz_key = "finish-range-demo"
+    quiz_version_id = _seed_exam_with_metadata(quiz_key)
+    candidate_id = create_candidate(name="答题范围候选人", phone="13570028888")
+    token = "finish-range-token"
+    started_at = datetime(2026, 5, 25, 7, 0, 0, tzinfo=timezone.utc)
+    finished_at = started_at + timedelta(minutes=3, seconds=5)
+    assignment = {
+        "token": token,
+        "quiz_key": quiz_key,
+        "quiz_version_id": quiz_version_id,
+        "candidate_id": candidate_id,
+        "created_at": started_at.isoformat(),
+        "status": "in_quiz",
+        "timing": {"start_at": started_at.isoformat(), "end_at": None},
+        "answers": {"Q1": "A"},
+        "grading": None,
+    }
+    save_assignment_record(token, assignment)
+    create_quiz_paper(
+        candidate_id=candidate_id,
+        phone="13570028888",
+        quiz_key=quiz_key,
+        quiz_version_id=quiz_version_id,
+        token=token,
+        status="in_quiz",
+    )
+
+    runtime_jobs._finalize_public_submission(token, assignment, now=finished_at)
+    response = client.get("/api/admin/logs")
+
+    assert response.status_code == 200
+    item = next(row for row in response.json()["items"] if row["event_type"] == "exam.finish" and row["token"] == token)
+    assert item["has_time_range"] is True
+    assert item["started_at"] == started_at.isoformat()
+    assert item["finished_at"] == finished_at.isoformat()
+    assert item["duration_seconds"] == 185
+    assert item["duration_display"] == "3分05秒"
 
 
 def test_system_status_summary_marks_llm_as_unconfigured_when_required_env_missing(monkeypatch, tmp_path):

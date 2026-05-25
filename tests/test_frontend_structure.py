@@ -75,6 +75,16 @@ def test_admin_assignments_module_uses_page_query_param() -> None:
     assert "scheduleAssignmentsReloadFromFirstPage" in source
 
 
+def test_admin_logs_page_supports_time_range_display() -> None:
+    source = (ROOT / "static" / "admin" / "pages" / "logs.html").read_text(encoding="utf-8")
+
+    assert "item.has_time_range" in source
+    assert "item.started_at_display" in source
+    assert "item.finished_at_display" in source
+    assert "item.duration_display" in source
+    assert "item.at_display" in source
+
+
 def test_admin_candidates_page_exposes_pagination_controls() -> None:
     source = (ROOT / "static" / "admin" / "pages" / "candidates.html").read_text(encoding="utf-8")
 

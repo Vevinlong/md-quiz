@@ -12,6 +12,7 @@ from backend.md_quiz.storage.db import (
     get_assignment_record,
     get_quiz_archive_by_token,
     get_quiz_paper_by_token,
+    list_operation_logs,
     save_quiz_definition,
 )
 
@@ -236,6 +237,11 @@ def test_process_grade_attempt_job_persists_grading_archive_and_noops_when_repla
     assert assignment["grading"]["status"] == "done"
     assert assignment["grading_error"] is None
     assert assignment["candidate_remark"] == "综合分析：表现稳定。建议继续保持。"
+
+    grade_log = next(row for row in list_operation_logs(limit=10) if row["event_type"] == "exam.grade")
+    assert grade_log["started_at"].isoformat() == assignment["grading"]["started_at"]
+    assert grade_log["finished_at"].isoformat() == assignment["grading"]["finished_at"]
+    assert int(grade_log["duration_seconds"] or 0) >= 0
 
     paper = get_quiz_paper_by_token(token)
     assert paper is not None

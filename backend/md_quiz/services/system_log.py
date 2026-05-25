@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from backend.md_quiz.config import logger
@@ -17,6 +18,8 @@ def log_event(
     llm_prompt_tokens: int | None = None,
     llm_completion_tokens: int | None = None,
     llm_total_tokens: int | None = None,
+    started_at: datetime | str | None = None,
+    finished_at: datetime | str | None = None,
     duration_seconds: int | None = None,
     ip: str | None = None,
     user_agent: str | None = None,
@@ -62,6 +65,8 @@ def log_event(
                 llm_prompt_tokens=llm_prompt_tokens,
                 llm_completion_tokens=llm_completion_tokens,
                 llm_total_tokens=llm_total_tokens,
+                started_at=started_at,
+                finished_at=finished_at,
                 duration_seconds=duration_seconds,
                 ip=ip2,
                 user_agent=ua2,
