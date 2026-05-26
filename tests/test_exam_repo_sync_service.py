@@ -22,6 +22,15 @@ from backend.md_quiz.services.exam_repo_sync_repo import (
     _load_quiz_repo_manifest,
 )
 from backend.md_quiz.services.exam_repo_sync_service import ExamRepoSyncError, perform_exam_repo_sync
+from backend.md_quiz.services.job_description_repo_sync import (
+    _build_job_description_candidate,
+    _load_job_description_repo_manifest,
+    _sync_job_description_candidate,
+)
+from backend.md_quiz.storage.db import (
+    archive_missing_repo_job_descriptions,
+    get_job_description_by_key,
+)
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -43,6 +52,22 @@ def _write_manifest(repo_root: Path, *quiz_paths: str) -> None:
     ]
     for path in quiz_paths:
         lines.append(f"  - path: {path}")
+    _write_text(repo_root / "md-quiz-repo.yaml", "\n".join(lines) + "\n")
+
+
+def _write_manifest_with_job_descriptions(repo_root: Path, *, quiz_paths: list[str], job_description_paths: list[str]) -> None:
+    _write_text(repo_root / "README.md", "# demo\n")
+    lines = [
+        "schema_version: 2",
+        "kind: md-quiz-repo",
+        "quizzes:",
+    ]
+    for path in quiz_paths:
+        lines.append(f"  - path: {path}")
+    if job_description_paths:
+        lines.append("job_descriptions:")
+        for path in job_description_paths:
+            lines.append(f"  - path: {path}")
     _write_text(repo_root / "md-quiz-repo.yaml", "\n".join(lines) + "\n")
 
 
@@ -157,6 +182,124 @@ def test_load_quiz_repo_manifest_rejects_invalid_quiz_path(tmp_path):
 
     with pytest.raises(ExamRepoSyncError, match="quizzes/<quiz_id>/quiz.md"):
         _load_quiz_repo_manifest(tmp_path)
+
+
+def test_load_job_description_manifest_rejects_invalid_path(tmp_path):
+    _write_manifest_with_job_descriptions(
+        tmp_path,
+        quiz_paths=["quizzes/demo/quiz.md"],
+        job_description_paths=["jobs/backend/jd.md"],
+    )
+    _write_text(tmp_path / "quizzes/demo/quiz.md", "# demo\n")
+    _write_text(tmp_path / "jobs/backend/jd.md", "# jd\n")
+
+    with pytest.raises(ExamRepoSyncError, match="job-descriptions/<jd_key>/jd.md"):
+        _load_job_description_repo_manifest(tmp_path)
+
+
+def test_build_job_description_candidate_uses_repo_relative_source_path(tmp_path):
+    _write_manifest_with_job_descriptions(
+        tmp_path,
+        quiz_paths=["quizzes/demo/quiz.md"],
+        job_description_paths=["job-descriptions/backend-engineer/jd.md"],
+    )
+    _write_text(tmp_path / "quizzes/demo/quiz.md", "# demo\n")
+    _write_text(
+        tmp_path / "job-descriptions/backend-engineer/jd.md",
+        """
+---
+id: backend-engineer
+title: 后端工程师
+status: active
+tags: [backend, python]
+related_quizzes:
+  - demo
+---
+
+## 岗位职责
+
+- 负责 API 设计
+""".strip()
+        + "\n",
+    )
+
+    candidate = _build_job_description_candidate(
+        tmp_path,
+        "https://example.com/repo.git",
+        "deadbeef",
+        "job-descriptions/backend-engineer/jd.md",
+    )
+
+    assert candidate["jd_key"] == "backend-engineer"
+    assert candidate["title"] == "后端工程师"
+    assert candidate["status"] == "active"
+    assert candidate["source_path"] == "job-descriptions/backend-engineer/jd.md"
+    assert candidate["tags"] == ["backend", "python"]
+    assert candidate["related_quizzes"] == ["demo"]
+    assert "## 岗位职责" in candidate["content_md"]
+
+
+def test_sync_job_description_candidate_upserts_by_stable_key():
+    candidate = {
+        "jd_key": "backend-engineer",
+        "title": "后端工程师",
+        "status": "active",
+        "content_md": "负责 API 设计",
+        "source_path": "job-descriptions/backend-engineer/jd.md",
+        "git_repo_url": "https://example.com/repo.git",
+        "git_commit": "commit-a",
+        "content_hash": "hash-a",
+        "related_quizzes": ["demo"],
+    }
+
+    first = _sync_job_description_candidate(candidate, synced_at="2026-04-01T00:00:00+00:00")
+    first_row = get_job_description_by_key("backend-engineer")
+    assert first["action"] == "created"
+    assert first_row and first_row["id"] == first["id"]
+    assert first_row["related_quizzes"] == ["demo"]
+
+    updated = dict(candidate)
+    updated.update({
+        "title": "高级后端工程师",
+        "content_md": "负责平台服务",
+        "git_commit": "commit-b",
+        "content_hash": "hash-b",
+        "related_quizzes": ["advanced-demo"],
+    })
+    second = _sync_job_description_candidate(updated, synced_at="2026-04-02T00:00:00+00:00")
+    second_row = get_job_description_by_key("backend-engineer")
+
+    assert second["action"] == "updated"
+    assert second_row and second_row["id"] == first_row["id"]
+    assert second_row["title"] == "高级后端工程师"
+    assert second_row["last_synced_commit"] == "commit-b"
+    assert second_row["related_quizzes"] == ["advanced-demo"]
+
+
+def test_archive_missing_repo_job_descriptions_preserves_row():
+    candidate = {
+        "jd_key": "backend-engineer",
+        "title": "后端工程师",
+        "status": "active",
+        "content_md": "负责 API 设计",
+        "source_path": "job-descriptions/backend-engineer/jd.md",
+        "git_repo_url": "https://example.com/repo.git",
+        "git_commit": "commit-a",
+        "content_hash": "hash-a",
+    }
+    _sync_job_description_candidate(candidate, synced_at="2026-04-01T00:00:00+00:00")
+
+    archived = archive_missing_repo_job_descriptions(
+        git_repo_url="https://example.com/repo.git",
+        active_source_paths=[],
+        last_synced_commit="commit-b",
+        last_sync_at="2026-04-02T00:00:00+00:00",
+    )
+    row = get_job_description_by_key("backend-engineer")
+
+    assert archived == 1
+    assert row and row["status"] == "archived"
+    assert row["content_md"] == "负责 API 设计"
 
 
 def test_build_exam_candidate_uses_repo_relative_source_path_and_assets(tmp_path):
@@ -414,6 +557,66 @@ title: Demo
     assert result["scanned_md"] == 1
     assert result["created_versions"] == 1
     assert captured[0]["source_path"] == "quizzes/demo/quiz.md"
+
+
+def test_perform_exam_repo_sync_scans_job_description_manifest(monkeypatch):
+    def _fake_clone(repo_url, workdir):
+        _write_manifest_with_job_descriptions(
+            workdir,
+            quiz_paths=["quizzes/demo/quiz.md"],
+            job_description_paths=["job-descriptions/backend-engineer/jd.md"],
+        )
+        _write_text(workdir / "quizzes/demo/quiz.md", "---\nid: demo\ntitle: Demo\n---\n")
+        _write_text(
+            workdir / "job-descriptions/backend-engineer/jd.md",
+            """
+---
+id: backend-engineer
+title: 后端工程师
+status: active
+related_quizzes:
+  - demo
+---
+
+负责 API 设计。
+""".strip()
+            + "\n",
+        )
+        return "deadbeef"
+
+    monkeypatch.setattr(exam_repo_sync_repo, "_clone_repo", _fake_clone)
+    monkeypatch.setattr(
+        exam_repo_sync_repo,
+        "_build_exam_candidate",
+        lambda *args, **kwargs: {
+            "quiz_key": "demo",
+            "title": "Demo",
+            "source_path": "quizzes/demo/quiz.md",
+            "git_repo_url": "https://example.com/repo.git",
+            "git_commit": "deadbeef",
+            "markdown_text": "",
+            "spec": {},
+            "public_spec": {},
+            "assets": {},
+            "content_hash": "hash-demo",
+        },
+    )
+    monkeypatch.setattr(
+        exam_repo_sync_apply,
+        "_sync_exam_candidate",
+        lambda candidate, synced_at: {"quiz_key": "demo", "version_id": 1, "version_no": 1, "action": "unchanged"},
+    )
+    monkeypatch.setattr(exam_repo_sync_state, "_write_git_sync_state", lambda **kwargs: kwargs)
+    monkeypatch.setattr(exam_repo_sync_repo, "list_quiz_definitions", lambda: [])
+
+    result = perform_exam_repo_sync("https://example.com/repo.git")
+    row = get_job_description_by_key("backend-engineer")
+
+    assert result["scanned_job_descriptions"] == 1
+    assert result["created_job_descriptions"] == 1
+    assert row and row["title"] == "后端工程师"
+    assert row["source_path"] == "job-descriptions/backend-engineer/jd.md"
+    assert row["related_quizzes"] == ["demo"]
 
 
 def test_perform_exam_repo_sync_marks_invalid_existing_source_as_sync_error(monkeypatch):

@@ -263,6 +263,8 @@ export function createAdminShellModule() {
       this.stopAssignmentsPolling();
       this.stopCandidateResumeUploadPolling();
       this.stopCandidateResumeReparsePolling();
+      window.clearTimeout(this.jobDescriptionsFilterTimer);
+      this.jobDescriptionsFilterTimer = null;
       this.adminCompactTabsState = {};
       await this.api("/api/admin/session/logout", { method: "POST", quiet: true });
       this.session = { authenticated: false, username: "" };

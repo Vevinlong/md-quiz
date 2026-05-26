@@ -40,6 +40,27 @@ def list_exams(request: Request, q: str = "", page: int = 1):
     }
 
 
+@router.get("/quizzes/options")
+@router.get("/exams/options")
+def list_exam_options(request: Request, q: str = ""):
+    shared._require_admin(request)
+    exams = shared.exam_helpers._list_exams()
+    query = str(q or "").strip().lower()
+    if query:
+        exams = [
+            item
+            for item in exams
+            if query in str(item.get("quiz_key") or "").lower()
+            or query in str(item.get("title") or "").lower()
+            or query in str(item.get("id") or "")
+            or any(query in str(tag or "").lower() for tag in (item.get("tags") or []))
+        ]
+    exams.sort(key=lambda item: float(item.get("_mtime") or 0), reverse=True)
+    return {
+        "items": [shared._serialize_exam_summary(item, request) for item in exams],
+    }
+
+
 @router.post("/quizzes/binding", status_code=status.HTTP_201_CREATED)
 def bind_exam_repo(payload: shared.RepoBindingPayload, request: Request):
     shared._require_admin(request)

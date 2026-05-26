@@ -18,6 +18,9 @@
       quiz.md
       assets/
         ...
+  job-descriptions/
+    <jd_key>/
+      jd.md
 ```
 
 ### 根目录要求
@@ -36,6 +39,8 @@ schema_version: 2
 kind: md-quiz-repo
 quizzes:
   - path: quizzes/common-ability-2025/quiz.md
+job_descriptions:
+  - path: job-descriptions/backend-engineer/jd.md
 ```
 
 规则：
@@ -45,7 +50,11 @@ quizzes:
 - `quizzes` 必须是非空列表
 - 每个 `path` 只能是 `quizzes/<quiz_id>/quiz.md`
 - `path` 不能重复，不能越界，必须真实存在
+- `job_descriptions` 可选；若存在，必须是列表
+- 每个职位 `path` 只能是 `job-descriptions/<jd_key>/jd.md`
+- 职位 `path` 不能重复，不能越界，必须真实存在
 - 新增或删除 quiz 时，`quizzes` 列表必须同步反映实际仓库内容
+- 新增或删除职位时，`job_descriptions` 列表必须同步反映实际仓库内容
 - 当前仓库规范版本号与 QML 头部推荐的 `schema_version: 2` / `format: qml-v2` 保持同一代际
 
 ## Quiz 目录规则
@@ -55,6 +64,35 @@ quizzes:
 - `quiz.md` 的 Front Matter `id` 必须等于目录名 `<quiz_id>`
 - `quiz.md` 可包含 `tags` 作为 quiz 级元数据；`tags` 属于 `quiz.md` Front Matter，不属于 `md-quiz-repo.yaml`
 - 同步时 `source_path` 保存 repo-relative path，例如 `quizzes/common-ability-2025/quiz.md`
+
+## 职位目录规则
+
+- 每份职位一个目录：`job-descriptions/<jd_key>/`
+- 职位入口文件固定名：`jd.md`
+- `jd.md` 必须使用 YAML Front Matter
+- Front Matter `id` 必须等于目录名 `<jd_key>`
+- Front Matter `title` 必须非空
+- Front Matter `status` 只能是 `draft`、`active` 或 `archived`
+- `tags` 和 `related_quizzes` 可选，若存在必须是字符串列表
+- `jd.md` 正文保存岗位职责、任职要求、筛选侧重点等 Markdown 内容
+- 同步时 `source_path` 保存 repo-relative path，例如 `job-descriptions/backend-engineer/jd.md`
+
+示例：
+
+```markdown
+---
+id: backend-engineer
+title: 后端工程师
+status: active
+tags: [backend, python]
+related_quizzes:
+  - common-ability-2025
+---
+
+## 岗位职责
+
+- 负责核心服务设计与实现
+```
 
 ## 资源规则
 

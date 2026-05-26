@@ -134,6 +134,18 @@
             <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">手机号</span>
             <input x-model="candidateForm.phone" class="w-full rounded-lg border border-blue-100 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-300" placeholder="13800138000" />
           </label>
+          <label class="block">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">职位</span>
+            <select
+              x-model="candidateForm.job_description_id"
+              class="w-full rounded-lg border border-blue-100 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            >
+              <option value="" disabled hidden>请选择职位</option>
+              <template x-for="item in candidateJobDescriptionOptions" :key="item.id">
+                <option :value="item.id" x-text="jobDescriptionOptionLabel(item)"></option>
+              </template>
+            </select>
+          </label>
           <button @click="createCandidate" type="button" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
             <span class="material-symbols-rounded text-base">person_add</span>
             创建候选人
@@ -145,22 +157,43 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div class="text-sm font-semibold text-slate-900">从简历直接入库</div>
-            <p class="mt-1 text-sm leading-6 text-slate-600">选择简历后，系统会自动解析手机号并创建或更新候选人。</p>
+            <p class="mt-1 text-sm leading-6 text-slate-600">先手动选择职位，再上传简历。系统会自动解析手机号并创建或更新候选人。</p>
           </div>
-          <button
-            @click="openCandidateResumeUploadPicker"
-            type="button"
-            :disabled="candidateResumeUploadState.busy"
-            class="inline-flex w-auto shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <span
-              class="material-symbols-rounded text-base"
-              :class="candidateResumeUploadState.busy ? 'animate-spin' : ''"
-              x-text="candidateResumeUploadState.busy ? 'progress_activity' : 'upload_file'"
-            ></span>
-            <span x-text="candidateResumeUploadState.busy ? '解析中...' : '选择简历'"></span>
-          </button>
+          <div class="group relative inline-flex w-auto shrink-0 self-start">
+            <button
+              @click="openCandidateResumeUploadPicker"
+              type="button"
+              :disabled="candidateResumeUploadState.busy || !selectedResumeUploadJobDescriptionId()"
+              class="inline-flex w-auto items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <span
+                class="material-symbols-rounded text-base"
+                :class="candidateResumeUploadState.busy ? 'animate-spin' : ''"
+                x-text="candidateResumeUploadState.busy ? 'progress_activity' : 'upload_file'"
+              ></span>
+              <span x-text="candidateResumeUploadState.busy ? '解析中...' : '选择简历'"></span>
+            </button>
+            <div
+              x-show="!candidateResumeUploadState.busy && !selectedResumeUploadJobDescriptionId()"
+              x-cloak
+              class="pointer-events-none absolute right-0 top-full z-30 mt-2 w-48 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs leading-5 text-slate-600 opacity-0 shadow-[var(--admin-shadow)] transition group-hover:opacity-100"
+            >
+              选择职位后上传
+            </div>
+          </div>
         </div>
+        <label class="mt-4 block">
+          <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">简历入库职位</span>
+          <select
+            x-model="candidateResumeUploadForm.job_description_id"
+            class="w-full rounded-lg border border-blue-100 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+          >
+            <option value="" disabled hidden>请选择职位</option>
+            <template x-for="item in candidateJobDescriptionOptions" :key="item.id">
+              <option :value="item.id" x-text="jobDescriptionOptionLabel(item)"></option>
+            </template>
+          </select>
+        </label>
         <input
           x-ref="candidateResumeUpload"
           @change="handleCandidateResumeUploadSelected($event)"

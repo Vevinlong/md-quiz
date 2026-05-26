@@ -99,6 +99,13 @@ export const ADMIN_COMPACT_TAB_CONFIG = {
       { id: "create", label: "创建候选人" },
     ],
   },
+  "job-descriptions": {
+    defaultTab: "list",
+    tabs: [
+      { id: "list", label: "职位列表" },
+      { id: "editor", label: "编辑预览" },
+    ],
+  },
   "candidate-detail": {
     defaultTab: "profile",
     tabs: [

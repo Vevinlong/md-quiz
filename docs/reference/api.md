@@ -56,6 +56,10 @@
 
 返回测验列表、分页信息、实例级仓库绑定信息与当前同步状态。
 
+### `GET /api/admin/quizzes/options`
+
+返回后台表单选择器使用的测验选项列表，不分页。
+
 ### `GET /api/admin/quizzes/{quiz_key}`
 
 返回测验详情、版本历史、公开邀约状态与测验快照。
@@ -68,7 +72,7 @@
 
 ### `POST /api/admin/quizzes/binding`
 
-首次绑定测验仓库，并自动尝试创建同步任务。
+首次绑定内容仓库，并自动尝试创建同步任务。
 
 请求：
 
@@ -78,7 +82,7 @@
 
 ### `POST /api/admin/quizzes/binding/rebind`
 
-重新绑定测验仓库。会删除当前实例中的测验、版本、邀约与答题归档数据，但保留候选人与简历；成功后自动尝试创建同步任务。
+重新绑定内容仓库。会删除当前实例中的测验、版本、邀约与答题归档数据，但保留候选人与简历；成功后自动尝试创建同步任务。
 
 请求：
 
@@ -91,12 +95,13 @@
 
 ### `POST /api/admin/quizzes/sync`
 
-为当前已绑定仓库创建或复用同步任务。
+为当前已绑定仓库创建或复用同步任务。同步内容包括 manifest 中声明的测验与职位。
 
 说明：
 
 - 未绑定仓库时返回 `409`
 - 请求体中的 `repo_url` 仅为兼容保留，服务端会忽略它，不允许借此覆盖当前绑定仓库
+- 职位使用 `md-quiz-repo.yaml` 中的 `job_descriptions` 清单，路径为 `job-descriptions/<jd_key>/jd.md`
 
 ### `POST /api/admin/quizzes/{quiz_key}/public-invite`
 
@@ -147,19 +152,43 @@
 
 ### `GET /api/admin/candidates`
 
-返回候选人列表、最近答题简报与筛选条件。
+返回候选人列表、最近答题简报与筛选条件。列表项会包含 `default_quiz_key` 与 `default_quiz_keys`，用于创建邀约时按候选人默认带出试题。
 
 ### `POST /api/admin/candidates`
 
-创建候选人。
+创建候选人。请求体必须包含 `name`、`phone` 和非空 `job_description_id`，创建成功后会写入候选人与职位的关联。
 
 ### `POST /api/admin/candidates/resume/upload`
 
-从简历直接创建或更新候选人。
+从简历直接创建或更新候选人。`multipart/form-data` 必须同时包含简历 `file` 和手动选择的 `job_description_id`。
+
+### `POST /api/admin/candidates/resume/upload-job`
+
+创建后台简历入库任务。`multipart/form-data` 必须同时包含简历 `file` 和手动选择的 `job_description_id`。
 
 ### `GET /api/admin/candidates/{candidate_id}`
 
-返回候选人详情、简历解析结果与答题记录。
+返回候选人详情、关联职位、简历解析结果与答题记录。候选人字段会包含 `default_quiz_key` 与 `default_quiz_keys`，关联职位项会包含 `related_quizzes`。
+
+### `POST /api/admin/candidates/{candidate_id}/job-descriptions`
+
+为候选人增加一个或多个职位关联。请求体：
+
+```json
+{ "job_description_ids": [1, 2] }
+```
+
+### `DELETE /api/admin/candidates/{candidate_id}/job-descriptions/{job_description_id}`
+
+取消候选人与指定职位的关联。
+
+### `POST /api/admin/candidates/{candidate_id}/job-descriptions/remove`
+
+取消候选人与指定职位的关联。请求体：
+
+```json
+{ "job_description_id": 1 }
+```
 
 ### `POST /api/admin/candidates/{candidate_id}/evaluation`
 
@@ -176,6 +205,26 @@
 ### `DELETE /api/admin/candidates/{candidate_id}`
 
 删除候选人；若已有答题记录则执行软删除。
+
+### `GET /api/admin/job-descriptions/options`
+
+返回候选人创建、简历入库和候选人详情增加关联时可选的启用职位列表。
+
+### `GET /api/admin/job-descriptions`
+
+返回职位列表。职位项会包含 `related_quizzes`。Git 仓库来源职位会包含 `source_kind=git`、`jd_key`、`source_path`、`git_repo_url`、`last_synced_commit`、`last_sync_at` 和 `last_sync_error`。
+
+### `POST /api/admin/job-descriptions`
+
+创建手动职位。请求体可传 `related_quizzes`，内容为测验 `quiz_key` 数组。
+
+### `PUT /api/admin/job-descriptions/{job_description_id}`
+
+更新手动职位。请求体可传 `related_quizzes`，内容为测验 `quiz_key` 数组。Git 仓库来源职位只读，需在 Git 仓库中修改后同步。
+
+### `DELETE /api/admin/job-descriptions/{job_description_id}`
+
+删除手动职位。Git 仓库来源职位需在 Git 仓库中归档或从 manifest 移除后同步。
 
 ### `GET /api/admin/assignments`
 
@@ -196,6 +245,8 @@
 
 创建新的答题邀约。整卷答题时长不再由请求手填，服务端会按测验中每道题的 `answer_time` 自动累计写入 assignment。
 
+- 请求体可传 `quiz_key`（兼容单选）或 `quiz_keys`（多选）；传多个 `quiz_keys` 时会为同一候选人分别创建多条邀约。
+- 若请求未提供 `quiz_key`/`quiz_keys`，服务端会从候选人关联的启用职位中取 `related_quizzes` 作为默认测验列表。
 - `ignore_timing=true` 时，当前邀约会关闭单题倒计时、超时自动跳题和整卷超时自动交卷。
 - 返回的 assignment/list item 会包含 `ignore_timing` 字段。
 

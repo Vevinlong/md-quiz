@@ -58,7 +58,8 @@
 - `exam_helpers.py`：题库快照、渲染字段、资源解析、公开邀约配置
 - `quiz_metadata.py`：题库摘要与展示元信息
 - `assignment_service.py`：assignment token、assignment 持久化与进程内 token 级锁
-- `exam_repo_sync_service.py`：Git 题库同步、绑定与重绑流程
+- `exam_repo_sync_service.py`：Git 内容仓库同步、绑定与重绑流程；当前同步测验与职位
+- `job_description_repo_sync.py`：Git 仓库来源职位的 manifest 解析、内容校验、upsert 与归档
 - `exam_generation_service.py`：AI 生成测验与配图策略
 
 ### 候选人流程与判卷

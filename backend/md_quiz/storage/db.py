@@ -127,6 +127,29 @@ def _json_load(raw: Any) -> Any:
         return None
 
 
+def _normalize_quiz_key_list(value: Any) -> list[str]:
+    raw = _json_load(value) if isinstance(value, str) else value
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raw = [raw]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _decode_job_description_row(row: Any) -> dict[str, Any]:
+    out = dict(row)
+    out["related_quizzes"] = _normalize_quiz_key_list(out.get("related_quizzes"))
+    return out
+
+
 def _iso_or_none(raw: Any) -> str | None:
     if raw is None:
         return None
@@ -464,6 +487,73 @@ ALTER TABLE candidate DROP COLUMN IF EXISTS duration_seconds;
  CREATE INDEX IF NOT EXISTS idx_candidate_phone ON candidate(phone);
  CREATE INDEX IF NOT EXISTS idx_candidate_created_at ON candidate(created_at);
  CREATE INDEX IF NOT EXISTS idx_candidate_deleted_at ON candidate(deleted_at);
+
+  CREATE TABLE IF NOT EXISTS job_description (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    content_md TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ NULL
+  );
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS content_md TEXT NOT NULL DEFAULT '';
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS jd_key TEXT NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS source_kind TEXT NOT NULL DEFAULT 'manual';
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS source_path TEXT NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS git_repo_url TEXT NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS last_synced_commit TEXT NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS last_sync_error TEXT NOT NULL DEFAULT '';
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS content_hash TEXT NULL;
+  ALTER TABLE job_description ADD COLUMN IF NOT EXISTS related_quizzes JSONB NOT NULL DEFAULT '[]'::jsonb;
+  UPDATE job_description
+     SET source_kind = 'manual'
+   WHERE COALESCE(NULLIF(BTRIM(source_kind), ''), 'manual') NOT IN ('manual', 'git');
+  UPDATE job_description
+     SET status = 'draft'
+   WHERE COALESCE(NULLIF(BTRIM(status), ''), 'draft') NOT IN ('draft', 'active', 'archived');
+  DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'job_description_status_check') THEN
+      BEGIN
+        ALTER TABLE job_description
+          ADD CONSTRAINT job_description_status_check CHECK (status IN ('draft', 'active', 'archived'));
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END;
+    END IF;
+  END$$;
+  DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'job_description_source_kind_check') THEN
+      BEGIN
+        ALTER TABLE job_description
+          ADD CONSTRAINT job_description_source_kind_check CHECK (source_kind IN ('manual', 'git'));
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END;
+    END IF;
+  END$$;
+  CREATE INDEX IF NOT EXISTS idx_job_description_status ON job_description(status);
+  CREATE INDEX IF NOT EXISTS idx_job_description_created_at ON job_description(created_at);
+  CREATE INDEX IF NOT EXISTS idx_job_description_updated_at ON job_description(updated_at);
+  CREATE INDEX IF NOT EXISTS idx_job_description_deleted_at ON job_description(deleted_at);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_job_description_jd_key_unique ON job_description(jd_key) WHERE jd_key IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_job_description_source_kind ON job_description(source_kind);
+  CREATE INDEX IF NOT EXISTS idx_job_description_source_path ON job_description(source_path);
+
+  CREATE TABLE IF NOT EXISTS candidate_job_description (
+    candidate_id BIGINT NOT NULL REFERENCES candidate(id) ON DELETE CASCADE,
+    job_description_id BIGINT NOT NULL REFERENCES job_description(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (candidate_id, job_description_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_candidate_job_description_candidate_id ON candidate_job_description(candidate_id);
+  CREATE INDEX IF NOT EXISTS idx_candidate_job_description_job_description_id ON candidate_job_description(job_description_id);
+  CREATE INDEX IF NOT EXISTS idx_candidate_job_description_created_at ON candidate_job_description(created_at);
 
   CREATE TABLE IF NOT EXISTS quiz_paper (
     id BIGSERIAL PRIMARY KEY,
@@ -1028,6 +1118,467 @@ def count_candidates(
             return int(cur.fetchone()[0])
 
 
+def _job_description_where_clause(
+    *,
+    query: str | None = None,
+    status: str | None = None,
+    table_alias: str = "",
+) -> tuple[str, list[Any]]:
+    alias = str(table_alias or "").strip()
+    if alias and not alias.endswith("."):
+        alias = f"{alias}."
+    where = [f"{alias}deleted_at IS NULL"]
+    params: list[Any] = []
+
+    current_status = str(status or "").strip().lower()
+    if current_status:
+        where.append(f"{alias}status = %s")
+        params.append(current_status)
+
+    q = str(query or "").strip()
+    if q:
+        like = f"%{q}%"
+        where.append(
+            f"({alias}title ILIKE %s OR {alias}content_md ILIKE %s OR {alias}jd_key ILIKE %s "
+            f"OR {alias}source_path ILIKE %s OR CAST({alias}id AS TEXT) = %s)"
+        )
+        params.extend([like, like, like, like, q])
+
+    return " WHERE " + " AND ".join(where), params
+
+
+def count_job_descriptions(*, query: str | None = None, status: str | None = None) -> int:
+    sql = "SELECT COUNT(*) FROM job_description"
+    where_sql, params = _job_description_where_clause(query=query, status=status)
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql + where_sql, tuple(params))
+            return int(cur.fetchone()[0])
+
+
+def list_job_descriptions(
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+    query: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    sql = """
+ SELECT id, title, content_md, status, created_at, updated_at,
+        jd_key, source_kind, source_path, git_repo_url,
+        last_synced_commit, last_sync_error, last_sync_at, content_hash,
+        related_quizzes::text AS related_quizzes
+ FROM job_description jd
+ """
+    where_sql, params = _job_description_where_clause(query=query, status=status, table_alias="jd")
+    sql += where_sql
+    sql += "\n ORDER BY jd.updated_at DESC, jd.id DESC\n"
+    if limit is not None:
+        sql += " LIMIT %s"
+        params.append(int(limit))
+    if offset:
+        sql += " OFFSET %s"
+        params.append(int(offset))
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, tuple(params))
+            return [_decode_job_description_row(row) for row in cur.fetchall()]
+
+
+def list_job_description_options(*, limit: int = 500) -> list[dict[str, Any]]:
+    sql = """
+ SELECT id, title, status, created_at, updated_at,
+        jd_key, source_kind, source_path, git_repo_url,
+        last_synced_commit, last_sync_error, last_sync_at,
+        related_quizzes::text AS related_quizzes
+ FROM job_description
+ WHERE deleted_at IS NULL
+   AND status = 'active'
+ ORDER BY
+   updated_at DESC,
+   id DESC
+ LIMIT %s
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (int(limit),))
+            return [_decode_job_description_row(row) for row in cur.fetchall()]
+
+
+def get_job_description(job_description_id: int) -> dict[str, Any] | None:
+    sql = """
+ SELECT id, title, content_md, status, created_at, updated_at,
+        jd_key, source_kind, source_path, git_repo_url,
+        last_synced_commit, last_sync_error, last_sync_at, content_hash,
+        related_quizzes::text AS related_quizzes
+ FROM job_description
+ WHERE id = %s
+   AND deleted_at IS NULL
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (int(job_description_id),))
+            row = cur.fetchone()
+            return _decode_job_description_row(row) if row else None
+
+
+def get_job_description_by_key(jd_key: str) -> dict[str, Any] | None:
+    key = str(jd_key or "").strip()
+    if not key:
+        return None
+    sql = """
+ SELECT id, title, content_md, status, created_at, updated_at,
+        jd_key, source_kind, source_path, git_repo_url,
+        last_synced_commit, last_sync_error, last_sync_at, content_hash,
+        related_quizzes::text AS related_quizzes
+ FROM job_description
+ WHERE jd_key = %s
+   AND deleted_at IS NULL
+ LIMIT 1
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (key,))
+            row = cur.fetchone()
+            return _decode_job_description_row(row) if row else None
+
+
+def upsert_job_description_from_repo(
+    *,
+    jd_key: str,
+    title: str,
+    content_md: str,
+    status: str,
+    source_path: str,
+    git_repo_url: str,
+    last_synced_commit: str,
+    content_hash: str,
+    last_sync_at,
+    related_quizzes: list[str] | None = None,
+) -> dict[str, Any]:
+    key = str(jd_key or "").strip()
+    if not key:
+        raise ValueError("missing jd_key")
+    status_key = str(status or "").strip().lower() or "draft"
+    if status_key not in {"draft", "active", "archived"}:
+        status_key = "draft"
+    normalized_related_quizzes = _normalize_quiz_key_list(related_quizzes)
+    select_sql = """
+ SELECT id
+ FROM job_description
+ WHERE jd_key = %s
+ LIMIT 1
+ """
+    returning_sql = """
+ RETURNING id, title, content_md, status, created_at, updated_at,
+           jd_key, source_kind, source_path, git_repo_url,
+           last_synced_commit, last_sync_error, last_sync_at, content_hash,
+           related_quizzes::text AS related_quizzes
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(select_sql, (key,))
+            existing = cur.fetchone()
+            if existing:
+                cur.execute(
+                    """
+ UPDATE job_description
+ SET title = %s,
+     content_md = %s,
+     status = %s,
+     related_quizzes = %s,
+     source_kind = 'git',
+     source_path = %s,
+     git_repo_url = %s,
+     last_synced_commit = %s,
+     last_sync_error = '',
+     last_sync_at = %s,
+     content_hash = %s,
+     deleted_at = NULL,
+     updated_at = NOW()
+ WHERE id = %s
+"""
+                    + returning_sql,
+                    (
+                        str(title or "").strip(),
+                        str(content_md or ""),
+                        status_key,
+                        _json_param(normalized_related_quizzes),
+                        str(source_path or "").strip(),
+                        str(git_repo_url or "").strip(),
+                        str(last_synced_commit or "").strip(),
+                        last_sync_at,
+                        str(content_hash or "").strip(),
+                        int(existing["id"]),
+                    ),
+                )
+            else:
+                cur.execute(
+                    """
+ INSERT INTO job_description(
+   title,
+   content_md,
+   status,
+   related_quizzes,
+   jd_key,
+   source_kind,
+   source_path,
+   git_repo_url,
+   last_synced_commit,
+   last_sync_error,
+   last_sync_at,
+   content_hash
+ )
+ VALUES (%s, %s, %s, %s, %s, 'git', %s, %s, %s, '', %s, %s)
+"""
+                    + returning_sql,
+                    (
+                        str(title or "").strip(),
+                        str(content_md or ""),
+                        status_key,
+                        _json_param(normalized_related_quizzes),
+                        key,
+                        str(source_path or "").strip(),
+                        str(git_repo_url or "").strip(),
+                        str(last_synced_commit or "").strip(),
+                        last_sync_at,
+                        str(content_hash or "").strip(),
+                    ),
+                )
+            return _decode_job_description_row(cur.fetchone())
+
+
+def mark_job_description_sync_error(
+    *,
+    jd_key: str = "",
+    source_path: str,
+    git_repo_url: str,
+    last_synced_commit: str,
+    message: str,
+    last_sync_at,
+) -> int:
+    key = str(jd_key or "").strip()
+    path = str(source_path or "").strip()
+    repo_url = str(git_repo_url or "").strip()
+    if not key and not (path and repo_url):
+        return 0
+    sql = """
+ UPDATE job_description
+ SET last_synced_commit = %s,
+     last_sync_error = %s,
+     last_sync_at = %s,
+     updated_at = NOW()
+ WHERE source_kind = 'git'
+   AND deleted_at IS NULL
+   AND (
+     (%s <> '' AND jd_key = %s)
+     OR (%s <> '' AND %s <> '' AND source_path = %s AND git_repo_url = %s)
+   )
+ """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql,
+                (
+                    str(last_synced_commit or "").strip(),
+                    str(message or ""),
+                    last_sync_at,
+                    key,
+                    key,
+                    path,
+                    repo_url,
+                    path,
+                    repo_url,
+                ),
+            )
+            return int(cur.rowcount or 0)
+
+
+def archive_missing_repo_job_descriptions(
+    *,
+    git_repo_url: str,
+    active_source_paths: list[str],
+    last_synced_commit: str,
+    last_sync_at,
+) -> int:
+    repo_url = str(git_repo_url or "").strip()
+    normalized_paths = sorted({str(path or "").strip() for path in active_source_paths if str(path or "").strip()})
+    if not repo_url:
+        return 0
+    params: list[Any] = [str(last_synced_commit or "").strip(), last_sync_at, repo_url]
+    where_extra = ""
+    if normalized_paths:
+        where_extra = " AND NOT (source_path = ANY(%s::text[]))"
+        params.append(normalized_paths)
+    sql = f"""
+ UPDATE job_description
+ SET status = 'archived',
+     last_synced_commit = %s,
+     last_sync_error = '',
+     last_sync_at = %s,
+     updated_at = NOW()
+ WHERE source_kind = 'git'
+   AND git_repo_url = %s
+   AND deleted_at IS NULL
+   AND status <> 'archived'
+{where_extra}
+ """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return int(cur.rowcount or 0)
+
+
+def list_candidate_job_descriptions(candidate_id: int) -> list[dict[str, Any]]:
+    sql = """
+ SELECT
+   jd.id,
+   jd.title,
+   jd.status,
+   jd.jd_key,
+   jd.source_kind,
+   jd.source_path,
+   jd.git_repo_url,
+   jd.related_quizzes::text AS related_quizzes,
+   cjd.created_at AS linked_at,
+   jd.created_at,
+   jd.updated_at
+ FROM candidate_job_description cjd
+ JOIN job_description jd ON jd.id = cjd.job_description_id
+ WHERE cjd.candidate_id = %s
+   AND jd.deleted_at IS NULL
+ ORDER BY cjd.created_at DESC, jd.id DESC
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (int(candidate_id),))
+            return [_decode_job_description_row(row) for row in cur.fetchall()]
+
+
+def add_candidate_job_descriptions(candidate_id: int, job_description_ids: list[int]) -> list[dict[str, Any]]:
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for raw_id in job_description_ids:
+        try:
+            job_description_id = int(raw_id)
+        except Exception:
+            continue
+        if job_description_id <= 0 or job_description_id in seen:
+            continue
+        seen.add(job_description_id)
+        normalized.append(job_description_id)
+    if not normalized:
+        return list_candidate_job_descriptions(candidate_id)
+
+    sql = """
+ INSERT INTO candidate_job_description(candidate_id, job_description_id)
+ SELECT %s, jd.id
+ FROM job_description jd
+ WHERE jd.id = ANY(%s::bigint[])
+   AND jd.deleted_at IS NULL
+   AND jd.status = 'active'
+ ON CONFLICT (candidate_id, job_description_id) DO NOTHING
+ """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (int(candidate_id), normalized))
+    return list_candidate_job_descriptions(candidate_id)
+
+
+def remove_candidate_job_description(candidate_id: int, job_description_id: int) -> int:
+    sql = """
+ DELETE FROM candidate_job_description
+ WHERE candidate_id = %s
+   AND job_description_id = %s
+ """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (int(candidate_id), int(job_description_id)))
+            return int(cur.rowcount or 0)
+
+
+def create_job_description(
+    *,
+    title: str,
+    content_md: str = "",
+    status: str = "draft",
+    related_quizzes: list[str] | None = None,
+) -> dict[str, Any]:
+    sql = """
+ INSERT INTO job_description(title, content_md, status, related_quizzes)
+ VALUES (%s, %s, %s, %s)
+ RETURNING id, title, content_md, status, created_at, updated_at,
+           jd_key, source_kind, source_path, git_repo_url,
+           last_synced_commit, last_sync_error, last_sync_at, content_hash,
+           related_quizzes::text AS related_quizzes
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                sql,
+                (
+                    str(title or "").strip(),
+                    str(content_md or ""),
+                    str(status or "draft").strip(),
+                    _json_param(_normalize_quiz_key_list(related_quizzes)),
+                ),
+            )
+            return _decode_job_description_row(cur.fetchone())
+
+
+def update_job_description(
+    job_description_id: int,
+    *,
+    title: str,
+    content_md: str,
+    status: str,
+    related_quizzes: list[str] | None = None,
+) -> dict[str, Any] | None:
+    sql = """
+ UPDATE job_description
+ SET title = %s,
+     content_md = %s,
+     status = %s,
+     related_quizzes = %s,
+     updated_at = NOW()
+ WHERE id = %s
+   AND deleted_at IS NULL
+ RETURNING id, title, content_md, status, created_at, updated_at,
+          jd_key, source_kind, source_path, git_repo_url,
+          last_synced_commit, last_sync_error, last_sync_at, content_hash,
+          related_quizzes::text AS related_quizzes
+ """
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                sql,
+                (
+                    str(title or "").strip(),
+                    str(content_md or ""),
+                    str(status or "draft").strip(),
+                    _json_param(_normalize_quiz_key_list(related_quizzes)),
+                    int(job_description_id),
+                ),
+            )
+            row = cur.fetchone()
+            return _decode_job_description_row(row) if row else None
+
+
+def delete_job_description(job_description_id: int) -> int:
+    sql = """
+ UPDATE job_description
+ SET deleted_at = NOW(),
+     updated_at = NOW(),
+     status = 'archived'
+ WHERE id = %s
+   AND deleted_at IS NULL
+ """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (int(job_description_id),))
+            return int(cur.rowcount or 0)
+
+
 def get_candidate_by_phone(phone: str) -> dict[str, Any] | None:
     sql = """
  SELECT id, name, phone, created_at
@@ -1044,7 +1595,7 @@ def get_candidate_by_phone(phone: str) -> dict[str, Any] | None:
             return dict(row) if row else None
 
 
-def create_candidate(name: str, phone: str) -> int:
+def create_candidate(name: str, phone: str, job_description_id: int | None = None) -> int:
     sql = """
  INSERT INTO candidate(name, phone)
  VALUES (%s, %s)
@@ -1053,7 +1604,22 @@ def create_candidate(name: str, phone: str) -> int:
     with conn_scope() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (name, phone))
-            return int(cur.fetchone()[0])
+            candidate_id = int(cur.fetchone()[0])
+            if job_description_id is not None:
+                cur.execute(
+                    """
+ INSERT INTO candidate_job_description(candidate_id, job_description_id)
+ SELECT %s, jd.id
+ FROM job_description jd
+ WHERE jd.id = %s
+   AND jd.deleted_at IS NULL
+   AND jd.status = 'active'
+ """,
+                    (candidate_id, int(job_description_id)),
+                )
+                if int(cur.rowcount or 0) <= 0:
+                    raise ValueError("job_description_not_found")
+            return candidate_id
 
 
 # 候选人（考生）的 id查找到候选者的身份信息

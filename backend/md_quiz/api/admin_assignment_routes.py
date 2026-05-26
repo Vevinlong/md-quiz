@@ -11,6 +11,30 @@ from . import admin as shared
 router = APIRouter()
 
 
+def _normalize_assignment_quiz_keys(payload: shared.AssignmentCreatePayload, candidate_id: int) -> list[str]:
+    raw_keys: list[str] = []
+    if isinstance(payload.quiz_keys, list):
+        raw_keys.extend(str(item or "").strip() for item in payload.quiz_keys)
+    quiz_key = str(payload.quiz_key or "").strip()
+    if quiz_key:
+        raw_keys.append(quiz_key)
+    if not any(raw_keys):
+        try:
+            job_description_rows = shared.deps.list_candidate_job_descriptions(int(candidate_id))
+        except Exception:
+            job_description_rows = []
+        raw_keys.extend(shared._candidate_default_quizzes_from_job_rows(job_description_rows))
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw_keys:
+        key = str(item or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
 @router.get("/assignments")
 def get_assignments(
     request: Request,
@@ -97,16 +121,12 @@ def get_assignments(
 @router.post("/assignments", status_code=status.HTTP_201_CREATED)
 def create_assignment(payload: shared.AssignmentCreatePayload, request: Request):
     shared._require_admin(request)
-    quiz_key = str(payload.quiz_key or "").strip()
-    if not quiz_key:
-        raise shared.HTTPException(status_code=400, detail="缺少 quiz_key")
     candidate = shared.deps.get_candidate(int(payload.candidate_id))
     if not candidate:
         raise shared.HTTPException(status_code=404, detail="候选人不存在")
-    exam = shared.deps.get_quiz_definition(quiz_key)
-    quiz_version_id = shared.exam_helpers.resolve_quiz_version_id_for_new_assignment(quiz_key)
-    if not exam or not quiz_version_id:
-        raise shared.HTTPException(status_code=400, detail="测验不可用")
+    quiz_keys = _normalize_assignment_quiz_keys(payload, int(payload.candidate_id))
+    if not quiz_keys:
+        raise shared.HTTPException(status_code=400, detail="缺少 quiz_key")
     start_date = shared._parse_date_ymd(payload.invite_start_date)
     end_date = shared._parse_date_ymd(payload.invite_end_date)
     if start_date is None or end_date is None:
@@ -114,59 +134,91 @@ def create_assignment(payload: shared.AssignmentCreatePayload, request: Request)
     if end_date < start_date:
         raise shared.HTTPException(status_code=400, detail="答题结束日期不能早于开始日期")
     ignore_timing = bool(payload.ignore_timing)
-    public_spec = exam.get("public_spec") if isinstance(exam.get("public_spec"), dict) else {}
-    time_limit_seconds = 0 if ignore_timing else shared.exam_helpers.compute_quiz_time_limit_seconds(public_spec)
-    if not ignore_timing and time_limit_seconds <= 0:
-        raise shared.HTTPException(status_code=400, detail="测验缺少有效的题目答题时长配置")
-    result = shared.deps.create_assignment(
-        quiz_key=quiz_key,
-        candidate_id=int(payload.candidate_id),
-        quiz_version_id=quiz_version_id,
-        base_url=shared._admin_base_url(request),
-        phone=str(candidate.get("phone") or ""),
-        invite_start_date=start_date.isoformat(),
-        invite_end_date=end_date.isoformat(),
-        time_limit_seconds=time_limit_seconds,
-        min_submit_seconds=0,
-        require_phone_verification=bool(payload.require_phone_verification),
-        ignore_timing=ignore_timing,
-        verify_max_attempts=int(payload.verify_max_attempts or 3),
-    )
-    token = str(result.get("token") or "").strip()
-    try:
-        shared.deps.create_quiz_paper(
-            candidate_id=int(payload.candidate_id),
-            phone=str(candidate.get("phone") or ""),
+
+    quiz_specs: list[dict[str, Any]] = []
+    for quiz_key in quiz_keys:
+        exam = shared.deps.get_quiz_definition(quiz_key)
+        quiz_version_id = shared.exam_helpers.resolve_quiz_version_id_for_new_assignment(quiz_key)
+        if not exam or not quiz_version_id:
+            raise shared.HTTPException(status_code=400, detail=f"测验不可用：{quiz_key}")
+        public_spec = exam.get("public_spec") if isinstance(exam.get("public_spec"), dict) else {}
+        time_limit_seconds = 0 if ignore_timing else shared.exam_helpers.compute_quiz_time_limit_seconds(public_spec)
+        if not ignore_timing and time_limit_seconds <= 0:
+            raise shared.HTTPException(status_code=400, detail=f"测验缺少有效的题目答题时长配置：{quiz_key}")
+        quiz_specs.append(
+            {
+                "quiz_key": quiz_key,
+                "quiz_version_id": int(quiz_version_id),
+                "time_limit_seconds": int(time_limit_seconds),
+            }
+        )
+
+    items: list[dict[str, Any]] = []
+    for spec in quiz_specs:
+        quiz_key = str(spec["quiz_key"])
+        quiz_version_id = int(spec["quiz_version_id"])
+        time_limit_seconds = int(spec["time_limit_seconds"])
+        result = shared.deps.create_assignment(
             quiz_key=quiz_key,
+            candidate_id=int(payload.candidate_id),
             quiz_version_id=quiz_version_id,
-            token=token,
-            source_kind="direct",
+            base_url=shared._admin_base_url(request),
+            phone=str(candidate.get("phone") or ""),
             invite_start_date=start_date.isoformat(),
             invite_end_date=end_date.isoformat(),
-            status="invited",
+            time_limit_seconds=time_limit_seconds,
+            min_submit_seconds=0,
+            require_phone_verification=bool(payload.require_phone_verification),
+            ignore_timing=ignore_timing,
+            verify_max_attempts=int(payload.verify_max_attempts or 3),
         )
-    except Exception:
-        shared.deps.logger.exception("Create quiz_paper failed (candidate_id=%s, quiz_key=%s)", payload.candidate_id, quiz_key)
-    try:
-        shared.deps.log_event(
-            "assignment.create",
-            actor="admin",
-            candidate_id=int(payload.candidate_id),
-            quiz_key=quiz_key,
-            token=token or None,
-            meta={
-                "invite_start_date": start_date.isoformat(),
-                "invite_end_date": end_date.isoformat(),
-                "require_phone_verification": bool(payload.require_phone_verification),
-                "ignore_timing": ignore_timing,
-            },
+        token = str(result.get("token") or "").strip()
+        try:
+            shared.deps.create_quiz_paper(
+                candidate_id=int(payload.candidate_id),
+                phone=str(candidate.get("phone") or ""),
+                quiz_key=quiz_key,
+                quiz_version_id=quiz_version_id,
+                token=token,
+                source_kind="direct",
+                invite_start_date=start_date.isoformat(),
+                invite_end_date=end_date.isoformat(),
+                status="invited",
+            )
+        except Exception:
+            shared.deps.logger.exception("Create quiz_paper failed (candidate_id=%s, quiz_key=%s)", payload.candidate_id, quiz_key)
+        try:
+            shared.deps.log_event(
+                "assignment.create",
+                actor="admin",
+                candidate_id=int(payload.candidate_id),
+                quiz_key=quiz_key,
+                token=token or None,
+                meta={
+                    "invite_start_date": start_date.isoformat(),
+                    "invite_end_date": end_date.isoformat(),
+                    "require_phone_verification": bool(payload.require_phone_verification),
+                    "ignore_timing": ignore_timing,
+                },
+            )
+        except Exception:
+            pass
+        items.append(
+            {
+                "quiz_key": quiz_key,
+                "token": token,
+                "url": result.get("url"),
+                "qr_url": f"/api/admin/assignments/{token}/qr.png" if token else "",
+            }
         )
-    except Exception:
-        pass
+
+    first = items[0] if items else {}
     return {
-        "token": token,
-        "url": result.get("url"),
-        "qr_url": f"/api/admin/assignments/{token}/qr.png" if token else "",
+        "token": first.get("token", ""),
+        "url": first.get("url", ""),
+        "qr_url": first.get("qr_url", ""),
+        "items": items,
+        "created_count": len(items),
     }
 
 

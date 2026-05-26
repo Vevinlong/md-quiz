@@ -1,9 +1,35 @@
 export function createAdminAssignmentsModule() {
   return {
+    normalizeAssignmentQuizKeys(value = null) {
+      const raw = Array.isArray(value) ? value : [];
+      const out = [];
+      const seen = new Set();
+      raw.forEach((item) => {
+        const key = String(item || "").trim();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(key);
+      });
+      return out;
+    },
+
+    selectedAssignmentQuizKeys() {
+      const keys = this.normalizeAssignmentQuizKeys(this.assignmentForm?.quiz_keys);
+      const legacyKey = String(this.assignmentForm?.quiz_key || "").trim();
+      if (legacyKey && !keys.includes(legacyKey)) {
+        keys.unshift(legacyKey);
+      }
+      return keys;
+    },
+
+    selectedAssignmentQuizzes() {
+      return this.selectedAssignmentQuizKeys()
+        .map((quizKey) => this.quizOptionByKey(quizKey) || { quiz_key: quizKey, title: quizKey })
+        .filter((item) => String(item?.quiz_key || "").trim());
+    },
+
     selectedAssignmentQuiz() {
-      const quizKey = String(this.assignmentForm?.quiz_key || "").trim();
-      if (!quizKey) return null;
-      return (this.quizzes?.items || []).find((item) => String(item?.quiz_key || "").trim() === quizKey) || null;
+      return this.selectedAssignmentQuizzes()[0] || null;
     },
 
     selectedAssignmentCandidate() {
@@ -14,7 +40,7 @@ export function createAdminAssignmentsModule() {
 
     filteredAssignmentQuizzes() {
       const query = String(this.assignmentSelect?.quiz?.query || "").trim().toLowerCase();
-      const items = Array.isArray(this.quizzes?.items) ? this.quizzes.items : [];
+      const items = this.quizOptionItems();
       if (!query) return items;
       return items.filter((item) => {
         const haystacks = [
@@ -34,9 +60,13 @@ export function createAdminAssignmentsModule() {
       const items = Array.isArray(this.candidates?.items) ? this.candidates.items : [];
       if (!query) return items;
       return items.filter((item) => {
+        const defaultQuizKeys = this.assignmentCandidateDefaultQuizKeys(item);
         const haystacks = [
           String(item?.name || "").trim(),
           String(item?.phone || "").trim(),
+          String(item?.default_quiz_key || "").trim(),
+          ...defaultQuizKeys,
+          this.quizOptionLabel(item?.default_quiz_key),
         ]
           .filter(Boolean)
           .join(" ")
@@ -51,8 +81,8 @@ export function createAdminAssignmentsModule() {
         return String(this.assignmentSelect[target].query || "");
       }
       if (target === "quiz") {
-        const selected = this.selectedAssignmentQuiz();
-        return selected ? String(selected.title || selected.quiz_key || "") : "";
+        const selected = this.selectedAssignmentQuizzes();
+        return selected.map((item) => String(item.title || item.quiz_key || "").trim()).filter(Boolean).join("、");
       }
       const selected = this.selectedAssignmentCandidate();
       return selected ? String(selected.name || "") : "";
@@ -73,11 +103,11 @@ export function createAdminAssignmentsModule() {
       this.assignmentSelect.candidate.open = false;
       this.assignmentSelect[target].open = true;
       this.assignmentSelect[target].query = value;
-      if (target === "quiz" && this.assignmentForm.quiz_key) {
-        this.assignmentForm.quiz_key = "";
-      }
+      // 测验是多选：输入框只用于筛选候选项，不能清空已选的 quiz_keys。
       if (target === "candidate" && this.assignmentForm.candidate_id) {
         this.assignmentForm.candidate_id = "";
+        this.assignmentForm.quiz_key = "";
+        this.assignmentForm.quiz_keys = [];
       }
     },
 
@@ -99,30 +129,88 @@ export function createAdminAssignmentsModule() {
       this.assignmentSelect[target].query = "";
     },
 
+    assignmentQuizSelected(item) {
+      const quizKey = String(item?.quiz_key || "").trim();
+      return Boolean(quizKey) && this.selectedAssignmentQuizKeys().includes(quizKey);
+    },
+
+    toggleAssignmentQuiz(item) {
+      const quizKey = String(item?.quiz_key || "").trim();
+      if (!quizKey) return;
+      const current = this.selectedAssignmentQuizKeys();
+      const next = current.includes(quizKey)
+        ? current.filter((itemKey) => itemKey !== quizKey)
+        : [...current, quizKey];
+      this.assignmentForm.quiz_keys = next;
+      this.assignmentForm.quiz_key = next[0] || "";
+    },
+
     selectAssignmentQuiz(item) {
-      this.assignmentForm.quiz_key = String(item?.quiz_key || "").trim();
-      this.closeAssignmentSelect("quiz");
+      this.toggleAssignmentQuiz(item);
     },
 
     clearAssignmentQuiz() {
       this.assignmentForm.quiz_key = "";
+      this.assignmentForm.quiz_keys = [];
       this.closeAssignmentSelect("quiz");
     },
 
-    selectAssignmentCandidate(item) {
+    assignmentCandidateDefaultQuizKeys(item) {
+      const directKeys = this.normalizeAssignmentQuizKeys(
+        Array.isArray(item?.default_quiz_keys) && item.default_quiz_keys.length
+          ? item.default_quiz_keys
+          : [item?.default_quiz_key],
+      );
+      const jobRows = Array.isArray(item?.job_descriptions) ? item.job_descriptions : [];
+      const jobKeys = this.normalizeAssignmentQuizKeys(
+        jobRows.flatMap((job) => (Array.isArray(job?.related_quizzes) ? job.related_quizzes : [])),
+      );
+      return this.normalizeAssignmentQuizKeys([...directKeys, ...jobKeys]);
+    },
+
+    async loadAssignmentCandidateDefaultQuizKeys(item) {
+      const fallbackKeys = this.assignmentCandidateDefaultQuizKeys(item);
+      const candidateId = Number(item?.id || 0);
+      if (!candidateId) return fallbackKeys;
+      if (Array.isArray(item?.default_quiz_keys) && item.default_quiz_keys.length) {
+        return fallbackKeys;
+      }
+      const detail = await this.api(`/api/admin/candidates/${candidateId}`, { quiet: true });
+      const candidateKeys = this.normalizeAssignmentQuizKeys(detail?.candidate?.default_quiz_keys);
+      const jobRows = Array.isArray(detail?.job_descriptions) ? detail.job_descriptions : [];
+      const jobKeys = this.normalizeAssignmentQuizKeys(
+        jobRows.flatMap((job) => (Array.isArray(job?.related_quizzes) ? job.related_quizzes : [])),
+      );
+      return this.normalizeAssignmentQuizKeys([...candidateKeys, ...jobKeys, ...fallbackKeys]);
+    },
+
+    async selectAssignmentCandidate(item) {
       this.assignmentForm.candidate_id = String(item?.id || "").trim();
+      const quizKeys = await this.loadAssignmentCandidateDefaultQuizKeys(item);
+      this.assignmentForm.quiz_keys = quizKeys;
+      this.assignmentForm.quiz_key = quizKeys[0] || "";
       this.closeAssignmentSelect("candidate");
     },
 
     clearAssignmentCandidate() {
       this.assignmentForm.candidate_id = "";
+      this.assignmentForm.quiz_key = "";
+      this.assignmentForm.quiz_keys = [];
       this.closeAssignmentSelect("candidate");
     },
 
     resetAssignmentCandidateSelection() {
       this.assignmentForm.candidate_id = "";
+      this.assignmentForm.quiz_key = "";
+      this.assignmentForm.quiz_keys = [];
       this.assignmentSelect.candidate.open = false;
       this.assignmentSelect.candidate.query = "";
+    },
+
+    assignmentCandidateDefaultQuizLabel(item) {
+      const quizKeys = this.assignmentCandidateDefaultQuizKeys(item);
+      if (!quizKeys.length) return "";
+      return quizKeys.map((quizKey) => this.quizOptionLabel(quizKey) || quizKey).join("、");
     },
 
     attemptReviewAnswers() {
@@ -878,8 +966,11 @@ export function createAdminAssignmentsModule() {
     },
 
     async createAssignment() {
+      const quizKeys = this.selectedAssignmentQuizKeys();
       const payload = {
         ...this.assignmentForm,
+        quiz_key: quizKeys[0] || "",
+        quiz_keys: quizKeys,
         candidate_id: Number(this.assignmentForm.candidate_id),
         require_phone_verification: Boolean(this.assignmentForm.require_phone_verification),
         ignore_timing: Boolean(this.assignmentForm.ignore_timing),
@@ -905,7 +996,8 @@ export function createAdminAssignmentsModule() {
       }
       this.assignmentForm.ignore_timing = false;
       this.resetAssignmentCandidateSelection();
-      this.showNotice(`邀约已创建：${result.url}`);
+      const createdCount = Number(result?.created_count || (Array.isArray(result?.items) ? result.items.length : 1));
+      this.showNotice(createdCount > 1 ? `已创建 ${createdCount} 个邀约` : `邀约已创建：${result.url}`);
       await this.loadAssignments({ page: 1 });
     },
 

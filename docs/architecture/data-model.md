@@ -6,6 +6,8 @@
 
 - `candidate`
 - `candidate_resume`
+- `job_description`
+- `candidate_job_description`
 - `quiz_definition`
 - `quiz_version`
 - `assignment`
@@ -67,13 +69,21 @@
 
 - `runtime_kv`
   - 保存 `runtime_config`
-  - 保存测验仓库绑定、同步状态、运行时迁移标记等键值数据
+  - 保存内容仓库绑定、同步状态、运行时迁移标记等键值数据
 - `runtime_daily_metric`
   - 保存系统状态页按日聚合指标与告警快照
 - `runtime_job`
   - 保存后台任务队列、执行状态与结果
 - `process_heartbeat`
   - 保存 API / Worker / Scheduler 心跳
+- `job_description`
+  - 保存后台维护的职位标题、Markdown 正文、状态与创建/更新时间
+  - `related_quizzes` 保存该职位关联的测验 `quiz_key` 列表；手动职位由后台选择，Git 仓库来源职位由 `jd.md` Front Matter 同步
+  - Git 仓库来源职位额外保存 `jd_key`、`source_kind`、`source_path`、`git_repo_url`、`last_synced_commit`、`last_sync_at`、`last_sync_error` 与 `content_hash`
+  - 候选人关联仍指向数据库自增 `id`；同步时按稳定 `jd_key` upsert，避免仓库内容更新导致历史关联断裂
+- `candidate_job_description`
+  - 保存候选人与职位的多对多关联；后台创建候选人和后台简历入库必须先选择一个启用职位
+  - 创建邀约时若请求未显式提供 `quiz_key`/`quiz_keys`，系统会从候选人关联的启用职位中取 `related_quizzes` 作为默认测验列表
 
 业务主数据同样已经落在 PostgreSQL，对应表结构以 `backend/md_quiz/storage/db.py:init_db()` 为准。
 

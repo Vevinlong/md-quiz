@@ -8,6 +8,99 @@ export function createAdminCandidatesModule() {
       return [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"].some((ext) => name.endsWith(ext));
     },
 
+    jobDescriptionOptionLabel(item) {
+      return String(item?.title || "").trim() || `职位 #${item?.id || ""}`;
+    },
+
+    async loadCandidateJobDescriptionOptions({ quiet = true } = {}) {
+      const data = await this.api("/api/admin/job-descriptions/options", { quiet });
+      if (!data) return;
+      this.candidateJobDescriptionOptions = Array.isArray(data?.items) ? data.items : [];
+    },
+
+    selectedCandidateJobDescriptionId() {
+      const value = Number(this.candidateForm?.job_description_id || 0);
+      return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    },
+
+    selectedResumeUploadJobDescriptionId() {
+      const value = Number(this.candidateResumeUploadForm?.job_description_id || 0);
+      return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    },
+
+    candidateJobDescriptions() {
+      const items = this.candidateDetail?.job_descriptions;
+      return Array.isArray(items) ? items.filter((item) => item && Number(item.id || 0) > 0) : [];
+    },
+
+    candidateJobDescriptionIds() {
+      return new Set(this.candidateJobDescriptions().map((item) => Number(item.id || 0)).filter((id) => id > 0));
+    },
+
+    candidateAvailableJobDescriptionOptions() {
+      const linked = this.candidateJobDescriptionIds();
+      const options = Array.isArray(this.candidateJobDescriptionOptions) ? this.candidateJobDescriptionOptions : [];
+      return options.filter((item) => {
+        const id = Number(item?.id || 0);
+        return id > 0 && !linked.has(id);
+      });
+    },
+
+    candidateJobDescriptionSelected(id) {
+      const numericId = Number(id || 0);
+      return (this.candidateJobDescriptionAddSelection || []).map((item) => Number(item || 0)).includes(numericId);
+    },
+
+    toggleCandidateJobDescriptionSelection(id) {
+      const numericId = Number(id || 0);
+      if (!Number.isFinite(numericId) || numericId <= 0) return;
+      const selected = (this.candidateJobDescriptionAddSelection || []).map((item) => Number(item || 0)).filter((item) => item > 0);
+      if (selected.includes(numericId)) {
+        this.candidateJobDescriptionAddSelection = selected.filter((item) => item !== numericId);
+      } else {
+        this.candidateJobDescriptionAddSelection = [...selected, numericId];
+      }
+    },
+
+    async addCandidateJobDescriptions() {
+      const ids = (this.candidateJobDescriptionAddSelection || []).map((item) => Number(item || 0)).filter((item) => item > 0);
+      if (!this.candidateDetail?.candidate?.id || !ids.length) {
+        this.showNotice("请选择要增加的职位");
+        return;
+      }
+      this.candidateDetail = await this.api(`/api/admin/candidates/${this.candidateDetail.candidate.id}/job-descriptions`, {
+        method: "POST",
+        body: JSON.stringify({ job_description_ids: ids }),
+        headers: { "Content-Type": "application/json" },
+      });
+      this.candidateJobDescriptionAddSelection = [];
+      this.showNotice("候选人职位已更新");
+    },
+
+    async removeCandidateJobDescription(item) {
+      const candidateId = Number(this.candidateDetail?.candidate?.id || 0);
+      const jobDescriptionId = Number(item?.id || 0);
+      if (!candidateId || !jobDescriptionId) return;
+      const title = String(item?.title || "").trim() || `职位 #${jobDescriptionId}`;
+      if (!window.confirm(`确定取消关联「${title}」吗？`)) return;
+      try {
+        this.candidateDetail = await this.api(`/api/admin/candidates/${candidateId}/job-descriptions/${jobDescriptionId}`, {
+          method: "DELETE",
+        });
+      } catch (error) {
+        if (String(error?.message || "").trim() !== "Not Found") {
+          throw error;
+        }
+        this.candidateDetail = await this.api(`/api/admin/candidates/${candidateId}/job-descriptions/remove`, {
+          method: "POST",
+          body: JSON.stringify({ job_description_id: jobDescriptionId }),
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      this.candidateJobDescriptionAddSelection = [];
+      this.showNotice("已取消职位关联");
+    },
+
     candidateResumeParsedData() {
       const details = this.candidateDetail?.resume_parsed?.details;
       const data = details?.data;
@@ -69,7 +162,22 @@ export function createAdminCandidatesModule() {
     candidateResumeSummary() {
       const profileSummary = String(this.candidateDetail?.profile?.evaluation_llm || "").trim();
       if (profileSummary) return profileSummary;
+      const evaluation = String(this.candidateResumeParsedData().evaluation || "").trim();
+      if (evaluation) return evaluation;
       return String(this.candidateResumeParsedData().summary || "").trim();
+    },
+
+    candidateResumeJobMatchScore() {
+      const raw = this.candidateDetail?.profile?.job_match_score ?? this.candidateResumeParsedData().job_match_score;
+      if (raw === null || raw === undefined || raw === "") return null;
+      const score = Number(raw);
+      if (!Number.isFinite(score)) return null;
+      return Math.max(0, Math.min(100, Math.round(score)));
+    },
+
+    candidateResumeJobMatchScoreText() {
+      const score = this.candidateResumeJobMatchScore();
+      return score === null ? "" : String(score);
     },
 
     candidateResumeError() {
@@ -202,10 +310,9 @@ export function createAdminCandidatesModule() {
       return items;
     },
 
-    candidateResumeHasStructuredContent() {
+    candidateResumeMainHasStructuredContent() {
       return Boolean(
-        this.candidateResumeSummary()
-        || this.candidateResumeBasicFacts().length
+        this.candidateResumeBasicFacts().length
         || this.candidateResumeEducations().length
         || this.candidateResumeTags("skills").length
         || this.candidateResumeEnglishItems().length
@@ -213,6 +320,13 @@ export function createAdminCandidatesModule() {
         || this.candidateResumeProjects().length
         || this.candidateResumeCollectionGroups().length
         || this.candidateResumeAdminSummaries().length,
+      );
+    },
+
+    candidateResumeHasStructuredContent() {
+      return Boolean(
+        this.candidateResumeSummary()
+        || this.candidateResumeMainHasStructuredContent(),
       );
     },
 
@@ -534,6 +648,7 @@ export function createAdminCandidatesModule() {
     },
 
     async loadCandidates({ quiet = false, page = null } = {}) {
+      await this.loadCandidateJobDescriptionOptions({ quiet: true });
       const query = new URLSearchParams();
       const nextPage = this.normalizeCandidatesPage(page, this.candidates?.page || 1);
       query.set("page", String(nextPage));
@@ -548,18 +663,31 @@ export function createAdminCandidatesModule() {
     },
 
     async createCandidate() {
+      const jobDescriptionId = this.selectedCandidateJobDescriptionId();
+      if (!jobDescriptionId) {
+        this.showNotice("请选择职位");
+        return;
+      }
+      const payload = {
+        ...this.candidateForm,
+        job_description_id: jobDescriptionId,
+      };
       await this.api("/api/admin/candidates", {
         method: "POST",
-        body: JSON.stringify(this.candidateForm),
+        body: JSON.stringify(payload),
         headers: { "Content-Type": "application/json" },
       });
-      this.candidateForm = { name: "", phone: "" };
+      this.candidateForm = { name: "", phone: "", job_description_id: "" };
       this.showNotice("候选人创建成功");
       await this.loadCandidates({ quiet: true, page: 1 });
     },
 
     openCandidateResumeUploadPicker() {
       if (this.candidateResumeUploadState.busy) return;
+      if (!this.selectedResumeUploadJobDescriptionId()) {
+        this.showNotice("请先为简历入库选择职位");
+        return;
+      }
       this.openFilePicker("candidateResumeUpload");
     },
 
@@ -586,6 +714,7 @@ export function createAdminCandidatesModule() {
       };
       const form = new FormData();
       form.append("file", file);
+      form.append("job_description_id", String(this.selectedResumeUploadJobDescriptionId()));
       try {
         const data = await this.api("/api/admin/candidates/resume/upload-job", {
           method: "POST",
@@ -622,7 +751,9 @@ export function createAdminCandidatesModule() {
     },
 
     async loadCandidateDetail(candidateId) {
+      await this.loadCandidateJobDescriptionOptions({ quiet: true });
       this.candidateDetail = await this.api(`/api/admin/candidates/${candidateId}`);
+      this.candidateJobDescriptionAddSelection = [];
       this.candidateEvaluation = "";
       if (!this.candidateResumeReparseState.busy) {
         this.resetCandidateResumeReparseState();

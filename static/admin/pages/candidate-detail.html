@@ -31,6 +31,12 @@
                     <span class="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700" x-text="'#' + (candidateDetail.candidate?.id || '')"></span>
                   </div>
                   <div class="mt-2 font-mono text-sm text-slate-500" x-text="candidateDetail.candidate?.phone"></div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <template x-for="item in candidateJobDescriptions()" :key="item.id">
+                      <span class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700" x-text="item.title || ('职位 #' + item.id)"></span>
+                    </template>
+                    <span x-show="!candidateJobDescriptions().length" class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">未关联职位</span>
+                  </div>
                 </div>
                 <button @click="deleteCandidate" type="button" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100">
                   删除候选人
@@ -124,12 +130,7 @@
                   <p class="mt-1 text-sm leading-6 text-rose-700" x-text="candidateResumeError()"></p>
                 </div>
 
-                <div x-show="candidateResumeHasStructuredContent()" class="mt-4 space-y-3">
-                  <section x-show="candidateResumeSummary()" class="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">摘要</div>
-                    <p class="mt-2 text-sm leading-6 text-slate-700" x-text="candidateResumeSummary()"></p>
-                  </section>
-
+                <div x-show="candidateResumeMainHasStructuredContent()" class="mt-4 space-y-3">
                   <section x-show="candidateResumeBasicFacts().length" class="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
                     <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">基础信息</div>
                     <dl class="mt-2 divide-y divide-slate-200">
@@ -252,7 +253,7 @@
                   </section>
                 </div>
 
-                <div x-show="!candidateResumeHasStructuredContent() && !candidateResumeError()" class="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-500">
+                <div x-show="!candidateResumeMainHasStructuredContent() && !candidateResumeSummary() && !candidateResumeError()" class="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-500">
                   本次解析未生成可展示的结构化内容。
                 </div>
 
@@ -268,6 +269,71 @@
                 <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">面试评价</h2>
                 <textarea x-model="candidateEvaluation" class="mt-4 h-44 w-full rounded-lg border border-blue-100 bg-white px-4 py-4 text-sm leading-7 outline-none focus:border-blue-300" placeholder="记录你的评估结论"></textarea>
                 <button @click="saveCandidateEvaluation" type="button" class="mt-4 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">保存评价</button>
+              </div>
+
+              <div x-show="candidateResumeSummary()" class="admin-surface rounded-3xl border border-white/70 bg-white/82 p-5 shadow-[var(--admin-shadow)] backdrop-blur-xl">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">简历评价</h2>
+                  <span
+                    x-show="candidateResumeJobMatchScoreText()"
+                    class="rounded-full border border-blue-100 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold leading-5 text-blue-700"
+                    x-text="'简历匹配度 ' + candidateResumeJobMatchScoreText() + '%'"
+                  ></span>
+                </div>
+                <p class="mt-4 whitespace-pre-line text-sm leading-6 text-slate-700" x-text="candidateResumeSummary()"></p>
+              </div>
+
+              <div class="admin-surface rounded-2xl border border-white/70 bg-white/82 p-4 shadow-[var(--admin-shadow)] backdrop-blur-xl">
+                <div class="flex flex-wrap items-start justify-between gap-2.5">
+                  <div>
+                    <h2 class="text-lg font-semibold tracking-[-0.03em] text-slate-900">关联职位</h2>
+                    <p class="mt-1 text-xs leading-5 text-slate-600" x-text="candidateJobDescriptions().length ? '当前候选人已关联以下职位，可继续增加。' : '当前候选人还没有关联职位。'"></p>
+                  </div>
+                  <span class="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold leading-5 text-blue-700" x-text="'已关联 ' + candidateJobDescriptions().length + ' 个'"></span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-1.5">
+                  <template x-for="item in candidateJobDescriptions()" :key="item.id">
+                    <span class="inline-flex h-7 items-center gap-1 rounded-full border border-blue-100 bg-blue-50 pl-2.5 pr-1 text-[11px] font-semibold leading-none text-blue-700">
+                      <span x-text="item.title || ('职位 #' + item.id)"></span>
+                      <button
+                        type="button"
+                        @click.stop="removeCandidateJobDescription(item)"
+                        class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold leading-none text-blue-500 transition hover:bg-blue-100 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                        :aria-label="'取消关联 ' + (item.title || ('职位 #' + item.id))"
+                        :title="'取消关联 ' + (item.title || ('职位 #' + item.id))"
+                      >
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </span>
+                  </template>
+                </div>
+                <div class="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-2">
+                  <div x-show="candidateAvailableJobDescriptionOptions().length" class="grid gap-1.5">
+                    <template x-for="item in candidateAvailableJobDescriptionOptions()" :key="item.id">
+                      <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-white/80 bg-white/70 px-2.5 py-1.5 text-xs text-slate-700 transition hover:bg-white">
+                        <input
+                          type="checkbox"
+                          class="h-3.5 w-3.5 rounded border-blue-200 text-blue-600 focus:ring-blue-300"
+                          :checked="candidateJobDescriptionSelected(item.id)"
+                          @change="toggleCandidateJobDescriptionSelection(item.id)"
+                        />
+                        <span class="min-w-0 flex-1 truncate" x-text="jobDescriptionOptionLabel(item)"></span>
+                      </label>
+                    </template>
+                  </div>
+                  <div x-show="!candidateAvailableJobDescriptionOptions().length" class="px-2 py-2 text-xs leading-5 text-slate-500">
+                    暂无可增加职位
+                  </div>
+                </div>
+                <button
+                  @click="addCandidateJobDescriptions"
+                  type="button"
+                  :disabled="!(candidateJobDescriptionAddSelection || []).length"
+                  class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span class="material-symbols-rounded text-base">add_link</span>
+                  增加关联
+                </button>
               </div>
 
               <div class="admin-surface rounded-3xl border border-white/70 bg-white/82 p-5 shadow-[var(--admin-shadow)] backdrop-blur-xl">

@@ -71,6 +71,7 @@ def parse_resume_payload(
     data: bytes,
     filename: str,
     mime: str,
+    job_description: dict[str, Any] | None = None,
     current_phone: str | None = None,
     flow: str = "",
     candidate_id: int | None = None,
@@ -91,7 +92,12 @@ def parse_resume_payload(
     llm_total_tokens = 0
     try:
         with deps.audit_context(meta={}):
-            parsed = deps.parse_resume_all_llm(data=data, filename=filename, mime=mime) or {}
+            parsed = deps.parse_resume_all_llm(
+                data=data,
+                filename=filename,
+                mime=mime,
+                job_description=job_description,
+            ) or {}
             ctx = deps.get_audit_context()
             meta = ctx.get("meta")
             if isinstance(meta, dict):

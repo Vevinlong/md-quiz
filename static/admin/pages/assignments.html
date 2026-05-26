@@ -53,7 +53,7 @@
                       <label class="block min-w-0" style="flex: 1.4 1 0; min-width: 180px">
                         <select x-model="filters.assignments.quiz_key" @change="reloadAssignmentsFromFirstPage" aria-label="测验" class="h-9 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
                           <option value="">全部测验</option>
-                          <template x-for="quiz in quizzes.items" :key="quiz.quiz_key">
+                          <template x-for="quiz in quizOptionItems()" :key="quiz.quiz_key">
                             <option :value="quiz.quiz_key" x-text="quiz.title || quiz.quiz_key"></option>
                           </template>
                         </select>
@@ -213,52 +213,6 @@
               <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">创建邀约</h2>
               <div class="admin-right-pane__body">
                 <div class="mt-4 space-y-4">
-                  <label class="block">
-                  <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">测验</span>
-                  <div class="relative" @click.outside="closeAssignmentSelect('quiz')">
-                    <div class="flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 py-3 transition focus-within:border-blue-300">
-                      <input
-                        :value="assignmentSelectDisplayValue('quiz')"
-                        @focus="openAssignmentSelect('quiz')"
-                        @input="handleAssignmentSelectInput('quiz', $event)"
-                        type="text"
-                        class="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                        placeholder="请选择测验"
-                      />
-                      <button
-                        x-show="selectedAssignmentQuiz()"
-                        @click.stop="clearAssignmentQuiz()"
-                        type="button"
-                        class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                      >
-                        <span class="material-symbols-rounded text-base">close</span>
-                      </button>
-                      <button
-                        @click.stop="toggleAssignmentSelect('quiz')"
-                        type="button"
-                        class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                      >
-                        <span class="material-symbols-rounded text-base">expand_more</span>
-                      </button>
-                    </div>
-                    <div x-show="assignmentSelect.quiz.open" x-cloak class="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.14)]">
-                      <div class="max-h-72 overflow-auto">
-                        <template x-for="item in filteredAssignmentQuizzes()" :key="item.quiz_key">
-                          <button @click="selectAssignmentQuiz(item)" type="button" class="block w-full border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-blue-50/50">
-                            <div class="flex flex-wrap items-center gap-2">
-                              <span class="inline-flex max-w-full items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                                <span class="truncate" x-text="item.title || item.quiz_key"></span>
-                              </span>
-                              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500" x-text="'预计 ' + (item.estimated_duration_minutes || 0) + ' 分钟'"></span>
-                            </div>
-                            <div class="mt-2 font-mono text-[11px] text-slate-500" x-text="item.quiz_key"></div>
-                          </button>
-                        </template>
-                        <div x-show="!filteredAssignmentQuizzes().length" class="px-4 py-6 text-center text-sm text-slate-500">未找到匹配测验</div>
-                      </div>
-                    </div>
-                  </div>
-                </label>
                 <label class="block">
                   <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">候选人</span>
                   <div class="relative" @click.outside="closeAssignmentSelect('candidate')">
@@ -297,9 +251,90 @@
                               </span>
                             </div>
                             <div class="mt-2 font-mono text-[11px] text-slate-500" x-text="item.phone"></div>
+                            <div
+                              x-show="assignmentCandidateDefaultQuizLabel(item)"
+                              class="mt-2 text-[11px] text-blue-600"
+                              x-text="'默认试题：' + assignmentCandidateDefaultQuizLabel(item)"
+                            ></div>
                           </button>
                         </template>
                         <div x-show="!filteredAssignmentCandidates().length" class="px-4 py-6 text-center text-sm text-slate-500">未找到匹配候选人</div>
+                      </div>
+                    </div>
+                  </div>
+                </label>
+                <label class="block">
+                  <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">测验</span>
+                  <div class="relative" @click.outside="closeAssignmentSelect('quiz')">
+                    <div class="flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 py-3 transition focus-within:border-blue-300">
+                      <input
+                        :value="assignmentSelectDisplayValue('quiz')"
+                        @focus="openAssignmentSelect('quiz')"
+                        @input="handleAssignmentSelectInput('quiz', $event)"
+                        type="text"
+                        class="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                        placeholder="选择候选人后自动带出，可多选"
+                      />
+                      <button
+                        x-show="selectedAssignmentQuizzes().length"
+                        @click.stop="clearAssignmentQuiz()"
+                        type="button"
+                        class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                      >
+                        <span class="material-symbols-rounded text-base">close</span>
+                      </button>
+                      <button
+                        @click.stop="toggleAssignmentSelect('quiz')"
+                        type="button"
+                        class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                      >
+                        <span class="material-symbols-rounded text-base">expand_more</span>
+                      </button>
+                    </div>
+                    <div x-show="selectedAssignmentQuizzes().length" x-cloak class="mt-2 flex flex-wrap gap-2">
+                      <template x-for="item in selectedAssignmentQuizzes()" :key="'assignment-selected-quiz-' + item.quiz_key">
+                        <span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                          <span class="max-w-[16rem] truncate" x-text="item.title || item.quiz_key"></span>
+                          <button
+                            @click.stop="toggleAssignmentQuiz(item)"
+                            type="button"
+                            class="inline-flex h-4 w-4 items-center justify-center rounded-full text-blue-500 transition hover:bg-blue-100 hover:text-blue-700"
+                            aria-label="移除测验"
+                          >
+                            <span class="material-symbols-rounded text-[14px] leading-none">close</span>
+                          </button>
+                        </span>
+                      </template>
+                    </div>
+                    <div x-show="assignmentSelect.quiz.open" x-cloak class="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.14)]">
+                      <div class="max-h-72 overflow-auto">
+                        <template x-for="item in filteredAssignmentQuizzes()" :key="item.quiz_key">
+                          <button
+                            @click.prevent="toggleAssignmentQuiz(item)"
+                            type="button"
+                            class="block w-full border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-blue-50/50"
+                            :class="assignmentQuizSelected(item) ? 'bg-blue-50/70' : ''"
+                          >
+                            <div class="flex items-start gap-3">
+                              <span
+                                class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border text-sm leading-none"
+                                :class="assignmentQuizSelected(item) ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'"
+                              >
+                                <span class="material-symbols-rounded text-[16px] leading-none">check</span>
+                              </span>
+                              <span class="min-w-0 flex-1">
+                                <span class="flex flex-wrap items-center gap-2">
+                                  <span class="inline-flex max-w-full items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                                    <span class="truncate" x-text="item.title || item.quiz_key"></span>
+                                  </span>
+                                  <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500" x-text="'预计 ' + (item.estimated_duration_minutes || 0) + ' 分钟'"></span>
+                                </span>
+                                <span class="mt-2 block font-mono text-[11px] text-slate-500" x-text="item.quiz_key"></span>
+                              </span>
+                            </div>
+                          </button>
+                        </template>
+                        <div x-show="!filteredAssignmentQuizzes().length" class="px-4 py-6 text-center text-sm text-slate-500">未找到匹配测验</div>
                       </div>
                     </div>
                   </div>

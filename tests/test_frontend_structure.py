@@ -46,6 +46,8 @@ def test_admin_candidates_page_uses_resume_job_polling() -> None:
     source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
 
     assert "/api/admin/candidates/resume/upload-job" in source
+    assert "/api/admin/job-descriptions/options" in source
+    assert 'form.append("job_description_id"' in source
     assert "/resume/reparse-job" in source
     assert "/api/admin/jobs/" in source
     assert "scheduleCandidateResumeUploadPolling" in source
@@ -61,6 +63,12 @@ def test_admin_assignments_page_exposes_pagination_controls() -> None:
     assert "末页" in source
     assert "filters.assignments.status" in source
     assert "filters.assignments.quiz_key" in source
+    assert "quizOptionItems()" in source
+    assert source.index("请选择候选人") < source.index("选择候选人后自动带出")
+    assert "assignmentQuizSelected(item)" in source
+    assert "toggleAssignmentQuiz(item)" in source
+    assert "assignment-selected-quiz-" in source
+    assert 'aria-label="移除测验"' in source
     assert "setAssignmentHandledFilter" in source
     assert "resetAssignmentFilters" in source
 
@@ -73,6 +81,13 @@ def test_admin_assignments_module_uses_page_query_param() -> None:
     assert 'query.set("handled"' in source
     assert 'query.set("quiz_key"' in source
     assert "scheduleAssignmentsReloadFromFirstPage" in source
+    assert "default_quiz_key" in source
+    assert "default_quiz_keys" in source
+    assert "selectedAssignmentQuizzes()" in source
+    assert "quiz_keys: quizKeys" in source
+    assert "loadAssignmentCandidateDefaultQuizKeys" in source
+    assert "/api/admin/candidates/${candidateId}" in source
+    assert "target === \"quiz\" && (this.assignmentForm.quiz_key" not in source
 
 
 def test_admin_logs_page_supports_time_range_display() -> None:
@@ -89,6 +104,8 @@ def test_admin_candidates_page_exposes_pagination_controls() -> None:
     source = (ROOT / "static" / "admin" / "pages" / "candidates.html").read_text(encoding="utf-8")
 
     assert "candidatesHavePagination" in source
+    assert "candidateForm.job_description_id" in source
+    assert "candidateResumeUploadForm.job_description_id" in source
     assert "首页" in source
     assert "上一页" in source
     assert "下一页" in source
@@ -120,6 +137,33 @@ def test_admin_candidates_page_exposes_attempt_summary() -> None:
     assert "正在判卷" in js_source
 
 
+def test_admin_candidate_detail_exposes_job_description_management() -> None:
+    html_source = (ROOT / "static" / "admin" / "pages" / "candidate-detail.html").read_text(encoding="utf-8")
+    js_source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
+
+    assert "candidateJobDescriptions()" in html_source
+    assert "candidateAvailableJobDescriptionOptions()" in html_source
+    assert "addCandidateJobDescriptions" in html_source
+    assert "removeCandidateJobDescription(item)" in html_source
+    assert "×" in html_source
+    assert "removeCandidateJobDescription" in js_source
+    assert "/job-descriptions/remove" in js_source
+    assert "/job-descriptions" in js_source
+    assert "job_description_ids" in js_source
+
+
+def test_admin_candidate_detail_places_resume_summary_in_action_column() -> None:
+    html_source = (ROOT / "static" / "admin" / "pages" / "candidate-detail.html").read_text(encoding="utf-8")
+    js_source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
+
+    actions_index = html_source.index('adminCompactPanelVisible(\'candidate-detail\', \'actions\')')
+    resume_summary_index = html_source.index('<div x-show="candidateResumeSummary()" class="admin-surface')
+
+    assert actions_index < resume_summary_index
+    assert "candidateResumeMainHasStructuredContent()" in html_source
+    assert "candidateResumeMainHasStructuredContent()" in js_source
+
+
 def test_admin_quiz_analytics_route_and_nav_exist() -> None:
     router_source = (ROOT / "static" / "admin" / "modules" / "router.js").read_text(encoding="utf-8")
     state_source = (ROOT / "static" / "admin" / "modules" / "state.js").read_text(encoding="utf-8")
@@ -129,3 +173,44 @@ def test_admin_quiz_analytics_route_and_nav_exist() -> None:
     assert 'name: "quiz-analytics"' in router_source
     assert 'href: "/admin/quiz-analytics"' in state_source
     assert 'label: "测验分析"' in state_source
+
+
+def test_admin_job_descriptions_route_nav_and_page_exist() -> None:
+    router_source = (ROOT / "static" / "admin" / "modules" / "router.js").read_text(encoding="utf-8")
+    state_source = (ROOT / "static" / "admin" / "modules" / "state.js").read_text(encoding="utf-8")
+    app_source = (ROOT / "static" / "admin" / "app.js").read_text(encoding="utf-8")
+    index_source = (ROOT / "static" / "admin" / "index.html").read_text(encoding="utf-8")
+    page_source = (ROOT / "static" / "admin" / "pages" / "job-descriptions.html").read_text(encoding="utf-8")
+    module_source = (ROOT / "static" / "admin" / "modules" / "pages" / "job-descriptions.js").read_text(encoding="utf-8")
+
+    assert '"/static/admin/pages/job-descriptions.html"' in router_source
+    assert 'path === "/admin/job-descriptions"' in router_source
+    assert 'name: "job-descriptions"' in router_source
+    assert 'href: "/admin/job-descriptions"' in state_source
+    assert 'label: "职位管理"' in state_source
+    assert 'jobDescriptionContentTab: "preview"' in state_source
+    assert "admin-body--job-descriptions" in index_source
+    assert "admin-page-mount" in index_source
+    assert "createAdminJobDescriptionsModule" in app_source
+    assert "jobDescriptionForm.content_md" in page_source
+    assert "关联试题" in page_source
+    assert "jobDescriptionRelatedQuizOptions()" in page_source
+    assert "toggleJobDescriptionRelatedQuiz" in page_source
+    assert "admin-job-description-page" in page_source
+    assert "admin-job-description-items" in page_source
+    assert "admin-job-description-editor" in page_source
+    assert 'aria-label="职位内容视图"' in page_source
+    assert "jobDescriptionContentTabs()" in page_source
+    assert "(jobDescriptionContentTab || 'preview') === 'preview'" in page_source
+    assert "overflow-y-auto overscroll-contain" in page_source
+    assert "jobDescriptionContentTabs()" in module_source
+    assert "normalizeJobDescriptionRelatedQuizzes" in module_source
+    assert "related_quizzes" in module_source
+    assert 'this.jobDescriptionContentTab = "preview"' in module_source
+    assert 'label: "编辑"' in module_source
+    assert 'label: "预览"' in module_source
+    assert "x-html=\"jobDescriptionPreviewHtml()\"" in page_source
+    assert "jobDescriptionSourceBadgeClass" in page_source
+    assert "jobDescriptionReadOnly()" in page_source
+    assert "/api/admin/job-descriptions" in module_source
+    assert "仓库来源职位请在 Git 仓库中修改" in module_source

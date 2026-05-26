@@ -42,6 +42,7 @@ def bootstrap(request: Request, container=Depends(get_container)):
             {"key": "quizzes", "label": "测验", "href": "/admin/quizzes"},
             {"key": "quiz-analytics", "label": "测验分析", "href": "/admin/quiz-analytics"},
             {"key": "candidates", "label": "候选人", "href": "/admin/candidates"},
+            {"key": "job-descriptions", "label": "职位管理", "href": "/admin/job-descriptions"},
             {"key": "assignments", "label": "邀约与答题", "href": "/admin/assignments"},
             {"key": "logs", "label": "系统日志", "href": "/admin/logs"},
             {"key": "status", "label": "系统状态", "href": "/admin/status"},

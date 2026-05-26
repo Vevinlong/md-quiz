@@ -8,11 +8,13 @@
 2. 仓库根目录是否有 `README.md`
 3. manifest 的 `schema_version` / `kind` / `quizzes` 是否合法
 4. manifest `path` 是否严格是 `quizzes/<quiz_id>/quiz.md`
-5. `quiz.md` 是否存在，且 Front Matter `id` 是否等于目录名
-6. Markdown 是否只引用图片，不包含普通链接
-7. 图片是否都在当前 quiz 目录 `assets/` 下
-8. 图片是否存在、未越界、未超 1MB、扩展名合法
-9. 仓库内是否出现重复 quiz id
+5. 若 manifest 包含 `job_descriptions`，职位 `path` 是否严格是 `job-descriptions/<jd_key>/jd.md`
+6. `quiz.md` 是否存在，且 Front Matter `id` 是否等于目录名
+7. `jd.md` 是否存在，且 Front Matter `id` 是否等于目录名、`title` 是否非空、`status` 是否合法
+8. Markdown 是否只引用图片，不包含普通链接
+9. 图片是否都在当前 quiz 目录 `assets/` 下
+10. 图片是否存在、未越界、未超 1MB、扩展名合法
+11. 仓库内是否出现重复 quiz id 或职位 id
 
 ## 常见错误与含义
 
@@ -39,9 +41,24 @@
 - 当前 path 不符合标准目录结构
 - 例如：根目录 `demo.md`、`exam/demo.md`、`quizzes/demo/demo.md` 都不合法
 
+### `职位 manifest path 只支持 job-descriptions/<jd_key>/jd.md`
+
+- `job_descriptions` 中的职位 path 不符合标准目录结构
+- 例如：`jobs/backend.md`、`job-descriptions/backend.md`、`job-descriptions/backend/profile.md` 都不合法
+
 ### `Front matter id 必须与目录名一致`
 
 - `quizzes/backend-basic/quiz.md` 的 `id` 只能是 `backend-basic`
+
+### `职位 Front Matter id 必须与目录名一致`
+
+- `job-descriptions/backend-engineer/jd.md` 的 `id` 只能是 `backend-engineer`
+
+### `职位 status 必须是 draft、active 或 archived`
+
+- Git 仓库中的职位状态不在允许集合内
+- `active` 职位会出现在候选人创建、简历入库和候选人详情增加关联的可选列表中
+- `draft` / `archived` 职位会同步入库，但不会作为当前可选职位
 
 ### `Markdown 只允许引用图片`
 

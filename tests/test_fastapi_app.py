@@ -17,6 +17,7 @@ from backend.md_quiz.storage.db import (
     conn_scope,
     create_assignment_record,
     create_candidate,
+    create_job_description,
     create_quiz_paper,
     create_quiz_version,
     delete_exam_domain_data_by_quiz_key,
@@ -25,8 +26,10 @@ from backend.md_quiz.storage.db import (
     get_quiz_archive_by_token,
     get_quiz_paper_by_token,
     get_runtime_kv,
+    upsert_job_description_from_repo,
     incr_runtime_daily_metric_int,
     init_db,
+    list_candidate_job_descriptions,
     replace_quiz_assets,
     replace_quiz_version_assets,
     save_quiz_archive,
@@ -52,6 +55,8 @@ def _reset_runtime_tables():
             cur.execute("DELETE FROM quiz_version")
             cur.execute("DELETE FROM quiz_asset")
             cur.execute("DELETE FROM quiz_definition")
+            cur.execute("DELETE FROM candidate_job_description")
+            cur.execute("DELETE FROM job_description")
             cur.execute("DELETE FROM candidate")
             cur.execute("DELETE FROM process_heartbeat")
             cur.execute("DELETE FROM runtime_job")
@@ -83,6 +88,178 @@ def _count_rows(table: str) -> int:
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             row = cur.fetchone()
     return int((row[0] if row else 0) or 0)
+
+
+def test_admin_job_description_crud_renders_markdown_safely(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+
+    payload = {
+        "title": "高级后端工程师",
+        "status": "draft",
+        "related_quizzes": ["backend-basic", "backend-basic", ""],
+        "content_md": "```md\n## 岗位职责\n\n- 负责 API 设计\n\n<script>alert(1)</script>\n\n[坏链接](javascript:alert(1))\n```",
+    }
+    response = client.post("/api/admin/job-descriptions", json=payload)
+    assert response.status_code == 201
+    created = response.json()
+    assert created["id"] > 0
+    assert created["title"] == "高级后端工程师"
+    assert created["status"] == "draft"
+    assert created["related_quizzes"] == ["backend-basic"]
+    assert "<h2>岗位职责</h2>" in created["content_html"]
+    assert "<pre" not in created["content_html"]
+    assert "<script" not in created["content_html"]
+    assert "javascript:" not in created["content_html"]
+
+    response = client.get("/api/admin/job-descriptions?q=后端")
+    assert response.status_code == 200
+    listed = response.json()
+    assert listed["total"] == 1
+    assert listed["items"][0]["title"] == "高级后端工程师"
+    assert listed["items"][0]["related_quizzes"] == ["backend-basic"]
+    assert "content_html" not in listed["items"][0]
+
+    updated_payload = {
+        "title": "平台后端工程师",
+        "status": "active",
+        "related_quizzes": ["platform-basic"],
+        "content_md": "# 平台后端工程师\n\n支持 PostgreSQL 与 FastAPI。",
+    }
+    response = client.put(f"/api/admin/job-descriptions/{created['id']}", json=updated_payload)
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["status"] == "active"
+    assert updated["related_quizzes"] == ["platform-basic"]
+    assert "<h1>平台后端工程师</h1>" in updated["content_html"]
+
+    response = client.delete(f"/api/admin/job-descriptions/{created['id']}")
+    assert response.status_code == 200
+    assert response.json()["deleted"] == 1
+
+    response = client.get(f"/api/admin/job-descriptions/{created['id']}")
+    assert response.status_code == 404
+
+
+def test_admin_job_description_git_source_is_read_only(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+    item = upsert_job_description_from_repo(
+        jd_key="backend-engineer",
+        title="后端工程师",
+        content_md="负责 API 设计",
+        status="active",
+        source_path="job-descriptions/backend-engineer/jd.md",
+        git_repo_url="https://example.com/repo.git",
+        last_synced_commit="deadbeef",
+        content_hash="hash-a",
+        last_sync_at=datetime.now(timezone.utc),
+        related_quizzes=["backend-basic"],
+    )
+
+    detail_response = client.get(f"/api/admin/job-descriptions/{item['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["source_kind"] == "git"
+    assert detail["jd_key"] == "backend-engineer"
+    assert detail["source_path"] == "job-descriptions/backend-engineer/jd.md"
+    assert detail["related_quizzes"] == ["backend-basic"]
+
+    update_response = client.put(
+        f"/api/admin/job-descriptions/{item['id']}",
+        json={"title": "手动改名", "content_md": "x", "status": "active"},
+    )
+    assert update_response.status_code == 409
+
+    delete_response = client.delete(f"/api/admin/job-descriptions/{item['id']}")
+    assert delete_response.status_code == 409
+
+
+def test_admin_candidate_create_requires_and_stores_job_description(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+    job = create_job_description(title="后端工程师", content_md="负责服务端开发", status="active", related_quizzes=["backend-basic"])
+    draft_job = create_job_description(title="草稿 JD", content_md="", status="draft")
+
+    missing_response = client.post(
+        "/api/admin/candidates",
+        json={"name": "候选人", "phone": "13900001001"},
+    )
+    assert missing_response.status_code == 400
+
+    draft_response = client.post(
+        "/api/admin/candidates",
+        json={
+            "name": "草稿候选人",
+            "phone": "13900001003",
+            "job_description_id": draft_job["id"],
+        },
+    )
+    assert draft_response.status_code == 400
+
+    options_response = client.get("/api/admin/job-descriptions/options")
+    assert options_response.status_code == 200
+    option_titles = [item["title"] for item in options_response.json()["items"]]
+    assert "后端工程师" in option_titles
+    assert "草稿 JD" not in option_titles
+
+    response = client.post(
+        "/api/admin/candidates",
+        json={
+            "name": "候选人",
+            "phone": "13900001001",
+            "job_description_id": job["id"],
+        },
+    )
+    assert response.status_code == 201
+    created = response.json()
+    assert created["id"] > 0
+
+    detail_response = client.get(f"/api/admin/candidates/{created['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert [item["title"] for item in detail["job_descriptions"]] == ["后端工程师"]
+    assert detail["candidate"]["default_quiz_key"] == "backend-basic"
+    assert detail["candidate"]["default_quiz_keys"] == ["backend-basic"]
+    assert list_candidate_job_descriptions(created["id"])[0]["id"] == job["id"]
+
+    list_response = client.get("/api/admin/candidates?q=候选人")
+    assert list_response.status_code == 200
+    listed_candidate = next(item for item in list_response.json()["items"] if item["id"] == created["id"])
+    assert listed_candidate["default_quiz_key"] == "backend-basic"
+    assert listed_candidate["default_quiz_keys"] == ["backend-basic"]
+
+
+def test_admin_candidate_detail_can_add_multiple_job_descriptions(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+    candidate_id = create_candidate("候选人", "13900001002")
+    job_a = create_job_description(title="后端工程师", content_md="", status="active")
+    job_b = create_job_description(title="平台工程师", content_md="", status="active")
+
+    response = client.post(
+        f"/api/admin/candidates/{candidate_id}/job-descriptions",
+        json={"job_description_ids": [job_a["id"], job_b["id"], job_a["id"]]},
+    )
+
+    assert response.status_code == 200
+    titles = {item["title"] for item in response.json()["job_descriptions"]}
+    assert titles == {"后端工程师", "平台工程师"}
+    assert len(list_candidate_job_descriptions(candidate_id)) == 2
+
+    remove_response = client.delete(f"/api/admin/candidates/{candidate_id}/job-descriptions/{job_a['id']}")
+    assert remove_response.status_code == 200
+    remaining_titles = {item["title"] for item in remove_response.json()["job_descriptions"]}
+    assert remaining_titles == {"平台工程师"}
+    assert len(list_candidate_job_descriptions(candidate_id)) == 1
+
+    remove_by_payload_response = client.post(
+        f"/api/admin/candidates/{candidate_id}/job-descriptions/remove",
+        json={"job_description_id": job_b["id"]},
+    )
+    assert remove_by_payload_response.status_code == 200
+    assert remove_by_payload_response.json()["job_descriptions"] == []
+    assert list_candidate_job_descriptions(candidate_id) == []
 
 
 def _seed_exam_with_metadata(quiz_key: str) -> int:
@@ -648,23 +825,36 @@ def _set_repo_binding(repo_url: str) -> None:
     )
 
 
-def _stub_admin_resume_parsing(monkeypatch, *, parsed_name: str, parsed_phone: str) -> None:
-    monkeypatch.setattr(
-        admin_api.deps,
-        "parse_resume_all_llm",
-        lambda data, filename, mime="": {
+def _stub_admin_resume_parsing(monkeypatch, *, parsed_name: str, parsed_phone: str) -> list[dict[str, Any] | None]:
+    seen_job_descriptions: list[dict[str, Any] | None] = []
+
+    def fake_parse_resume_all_llm(data, filename, mime="", job_description=None):
+        seen_job_descriptions.append(job_description)
+        return {
             "name": parsed_name,
             "phone": parsed_phone,
             "confidence": {"name": 96, "phone": 98},
-            "details": {"skills": ["python"], "experience_blocks": [], "projects_raw": ""},
+            "details": {
+                "evaluation": "候选人具备 Python 项目经验，简历信息完整。",
+                "job_match_score": 82,
+                "skills": ["python"],
+                "experience_blocks": [],
+                "projects_raw": "",
+            },
             "details_status": "done",
             "method": {
                 "identity": "llm_attachment",
                 "name": "llm_attachment",
                 "details": "llm_attachment",
             },
-        },
+        }
+
+    monkeypatch.setattr(
+        admin_api.deps,
+        "parse_resume_all_llm",
+        fake_parse_resume_all_llm,
     )
+    return seen_job_descriptions
 
 
 def _stub_public_resume_parsing(monkeypatch, *, parsed_name: str, parsed_phone: str) -> None:
@@ -1225,13 +1415,15 @@ def test_admin_quiz_estimated_duration_prefers_answer_time_total(monkeypatch, tm
 
 def test_admin_candidate_resume_upload_returns_created_flag_for_new_candidate(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
-    _stub_admin_resume_parsing(monkeypatch, parsed_name="新候选人", parsed_phone="13912345678")
+    seen_job_descriptions = _stub_admin_resume_parsing(monkeypatch, parsed_name="新候选人", parsed_phone="13912345678")
+    job = create_job_description(title="简历入库 JD", content_md="", status="active")
 
     login_response = client.post("/api/admin/session/login", json={"username": "admin", "password": "password"})
     assert login_response.status_code == 200
 
     response = client.post(
         "/api/admin/candidates/resume/upload",
+        data={"job_description_id": str(job["id"])},
         files={"file": ("resume.pdf", b"%PDF-1.4 demo", "application/pdf")},
     )
 
@@ -1241,12 +1433,16 @@ def test_admin_candidate_resume_upload_returns_created_flag_for_new_candidate(mo
     assert payload["candidate"]["name"] == "新候选人"
     assert payload["candidate"]["phone"] == "13912345678"
     assert payload["candidate"]["resume_filename"] == "resume.pdf"
+    assert payload["job_descriptions"][0]["title"] == "简历入库 JD"
+    assert seen_job_descriptions and seen_job_descriptions[0]
+    assert seen_job_descriptions[0]["title"] == "简历入库 JD"
     assert _count_rows("candidate") == 1
 
 
 def test_admin_candidate_resume_upload_marks_existing_candidate_as_updated(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     create_candidate("现有候选人", "13912345678")
+    job = create_job_description(title="现有候选人 JD", content_md="", status="active")
     _stub_admin_resume_parsing(monkeypatch, parsed_name="简历里的名字", parsed_phone="13912345678")
 
     login_response = client.post("/api/admin/session/login", json={"username": "admin", "password": "password"})
@@ -1254,6 +1450,7 @@ def test_admin_candidate_resume_upload_marks_existing_candidate_as_updated(monke
 
     response = client.post(
         "/api/admin/candidates/resume/upload",
+        data={"job_description_id": str(job["id"])},
         files={"file": ("resume.pdf", b"%PDF-1.4 demo", "application/pdf")},
     )
 
@@ -1263,16 +1460,19 @@ def test_admin_candidate_resume_upload_marks_existing_candidate_as_updated(monke
     assert payload["candidate"]["name"] == "现有候选人"
     assert payload["candidate"]["phone"] == "13912345678"
     assert payload["candidate"]["resume_filename"] == "resume.pdf"
+    assert payload["job_descriptions"][0]["title"] == "现有候选人 JD"
     assert _count_rows("candidate") == 1
 
 
 def test_admin_candidate_resume_upload_job_enqueues_and_completes(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     _stub_admin_resume_parsing(monkeypatch, parsed_name="异步候选人", parsed_phone="13999990001")
+    job = create_job_description(title="异步简历 JD", content_md="", status="active")
     _admin_login(client)
 
     response = client.post(
         "/api/admin/candidates/resume/upload-job",
+        data={"job_description_id": str(job["id"])},
         files={"file": ("resume.pdf", b"%PDF-1.4 demo", "application/pdf")},
     )
 
@@ -1288,7 +1488,10 @@ def test_admin_candidate_resume_upload_job_enqueues_and_completes(monkeypatch, t
     assert queued_job.json()["status"] == "pending"
 
     service = JobService(JobStore())
-    processed = service.process(service.get_job(job_id))
+    claimed_job = service.claim_next("test-admin-resume-upload")
+    assert claimed_job is not None
+    assert claimed_job.id == job_id
+    processed = service.process(claimed_job)
     assert processed is not None
     assert processed.status == "done"
     assert processed.result == {
@@ -1303,7 +1506,20 @@ def test_admin_candidate_resume_upload_job_enqueues_and_completes(monkeypatch, t
     assert candidate is not None
     assert candidate["name"] == "异步候选人"
     assert candidate["phone"] == "13999990001"
+    assert list_candidate_job_descriptions(int(result["candidate_id"]))[0]["title"] == "异步简历 JD"
     assert _count_rows("candidate") == 1
+
+    logs_response = client.get("/api/admin/logs")
+    assert logs_response.status_code == 200
+    parse_log = next(
+        row
+        for row in logs_response.json()["items"]
+        if row["event_type"] == "candidate.resume.parse" and row["candidate_id"] == int(result["candidate_id"])
+    )
+    assert parse_log["has_time_range"] is True
+    assert parse_log["started_at"]
+    assert parse_log["finished_at"]
+    assert parse_log["duration_display"]
 
     completed_job = client.get(f"/api/admin/jobs/{job_id}")
     assert completed_job.status_code == 200
@@ -1596,6 +1812,38 @@ def test_admin_create_assignment_defaults_phone_verification_false(monkeypatch, 
     item = next(it for it in list_response.json()["items"] if it["token"] == token)
     assert item["require_phone_verification"] is False
     assert item["ignore_timing"] is False
+
+
+def test_admin_create_assignment_uses_candidate_default_quiz(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _seed_exam_with_metadata("candidate-default-quiz-demo")
+    _seed_exam_with_metadata("candidate-default-quiz-extra")
+    job = create_job_description(
+        title="算法实习生",
+        content_md="负责机器学习模型实验",
+        status="active",
+        related_quizzes=["candidate-default-quiz-demo", "candidate-default-quiz-extra"],
+    )
+    candidate_id = create_candidate("默认试题候选人", "13900000018", job_description_id=job["id"])
+
+    login_response = client.post("/api/admin/session/login", json={"username": "admin", "password": "password"})
+    assert login_response.status_code == 200
+
+    create_response = client.post(
+        "/api/admin/assignments",
+        json={
+            "candidate_id": candidate_id,
+            "invite_start_date": "2026-04-01",
+            "invite_end_date": "2026-04-02",
+        },
+    )
+
+    assert create_response.status_code == 201
+    payload = create_response.json()
+    assert payload["created_count"] == 2
+    assert [item["quiz_key"] for item in payload["items"]] == ["candidate-default-quiz-demo", "candidate-default-quiz-extra"]
+    assignments = [get_assignment_record(item["token"]) for item in payload["items"]]
+    assert [item["quiz_key"] for item in assignments if item] == ["candidate-default-quiz-demo", "candidate-default-quiz-extra"]
 
 
 def test_admin_create_assignment_can_enable_phone_verification(monkeypatch, tmp_path):

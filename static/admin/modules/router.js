@@ -6,6 +6,7 @@ export const ADMIN_ROUTE_FRAGMENTS = {
   "quiz-analytics": { fragment: "/static/admin/pages/quiz-analytics.html", mountRef: "pageMount" },
   "quiz-detail": { fragment: "/static/admin/pages/quiz-detail.html", mountRef: "pageMount" },
   candidates: { fragment: "/static/admin/pages/candidates.html", mountRef: "pageMount" },
+  "job-descriptions": { fragment: "/static/admin/pages/job-descriptions.html", mountRef: "pageMount" },
   "candidate-detail": { fragment: "/static/admin/pages/candidate-detail.html", mountRef: "pageMount" },
   assignments: { fragment: "/static/admin/pages/assignments.html", mountRef: "pageMount" },
   "attempt-detail": { fragment: "/static/admin/pages/attempt-detail.html", mountRef: "pageMount" },
@@ -108,6 +109,9 @@ export function createAdminRouterModule() {
       if (path === "/admin/candidates") {
         return withMeta({ name: "candidates", path, title: "候选人", section: "Candidates", params: {} });
       }
+      if (path === "/admin/job-descriptions") {
+        return withMeta({ name: "job-descriptions", path, title: "职位管理", section: "Job Descriptions", params: {} });
+      }
       match = path.match(/^\/admin\/candidates\/(\d+)$/);
       if (match) {
         return withMeta({
@@ -154,6 +158,7 @@ export function createAdminRouterModule() {
         this.loadSystemBootstrap(),
         this.loadStatusSummary(),
         this.loadQuizzes({ quiet: true }),
+        this.loadQuizOptions({ quiet: true }),
         this.loadCandidates({ quiet: true }),
       ]);
     },
@@ -221,6 +226,10 @@ export function createAdminRouterModule() {
       if (this.route.name !== "candidate-detail") {
         this.stopCandidateResumeReparsePolling();
       }
+      if (this.route.name !== "job-descriptions") {
+        window.clearTimeout(this.jobDescriptionsFilterTimer);
+        this.jobDescriptionsFilterTimer = null;
+      }
 
       switch (this.route.name) {
         case "quizzes":
@@ -239,7 +248,13 @@ export function createAdminRouterModule() {
         case "candidate-detail":
           await this.loadCandidateDetail(this.route.params.candidateId);
           break;
+        case "job-descriptions":
+          await this.loadQuizOptions({ quiet: true });
+          await this.loadJobDescriptions();
+          break;
         case "assignments":
+          await this.loadQuizOptions({ quiet: true });
+          await this.loadCandidates({ quiet: true });
           await this.loadAssignments();
           break;
         case "attempt-detail":

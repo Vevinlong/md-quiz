@@ -47,6 +47,32 @@ export function createAdminQuizzesModule() {
       }).format(date);
     },
 
+    quizOptionItems() {
+      if (Array.isArray(this.quizOptions) && this.quizOptions.length) {
+        return this.quizOptions;
+      }
+      return Array.isArray(this.quizzes?.items) ? this.quizzes.items : [];
+    },
+
+    quizOptionByKey(quizKey) {
+      const key = String(quizKey || "").trim();
+      if (!key) return null;
+      return this.quizOptionItems().find((item) => String(item?.quiz_key || "").trim() === key) || null;
+    },
+
+    quizOptionLabel(quizKey) {
+      const key = String(quizKey || "").trim();
+      if (!key) return "";
+      const item = this.quizOptionByKey(key);
+      return String(item?.title || item?.quiz_key || key).trim();
+    },
+
+    async loadQuizOptions({ quiet = true } = {}) {
+      const data = await this.api("/api/admin/quizzes/options", { quiet });
+      if (!data) return;
+      this.quizOptions = Array.isArray(data?.items) ? data.items : [];
+    },
+
     traitPalette(index) {
       return TRAIT_COLOR_PALETTE[Math.abs(Number(index || 0)) % TRAIT_COLOR_PALETTE.length];
     },

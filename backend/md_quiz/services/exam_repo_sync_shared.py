@@ -15,6 +15,7 @@ QUIZ_REPO_MANIFEST = "md-quiz-repo.yaml"
 QUIZ_REPO_KIND = "md-quiz-repo"
 QUIZ_REPO_SCHEMA_VERSION = QUIZ_SCHEMA_VERSION
 _QUIZ_PATH_RE = re.compile(r"^quizzes/(?P<quiz_id>[A-Za-z0-9_-]+)/quiz\.md$")
+_JOB_DESCRIPTION_PATH_RE = re.compile(r"^job-descriptions/(?P<jd_key>[A-Za-z0-9_-]+)/jd\.md$")
 
 _MD_IMAGE_RE = re.compile(r"!\[[^\]]*]\((?P<path>[^)]+)\)")
 _HTML_IMG_SRC_RE = re.compile(
@@ -83,6 +84,7 @@ __all__ = [
     "_FRONTMATTER_ID_RE",
     "_HTML_IMG_SRC_RE",
     "_HTML_VERSION_ASSET_RE",
+    "_JOB_DESCRIPTION_PATH_RE",
     "_LEGACY_ASSET_URL_RE",
     "_MD_IMAGE_RE",
     "_MD_LINK_RE",

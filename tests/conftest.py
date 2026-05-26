@@ -22,6 +22,7 @@ TRUNCATE TABLE
   runtime_job,
   runtime_daily_metric,
   runtime_kv,
+  job_description,
   quiz_version_asset,
   quiz_archive,
   quiz_paper,

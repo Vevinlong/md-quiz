@@ -28,6 +28,7 @@ def _reset_runtime_tables():
             cur.execute("DELETE FROM quiz_version")
             cur.execute("DELETE FROM quiz_asset")
             cur.execute("DELETE FROM quiz_definition")
+            cur.execute("DELETE FROM job_description")
             cur.execute("DELETE FROM candidate")
             cur.execute("DELETE FROM process_heartbeat")
             cur.execute("DELETE FROM runtime_job")

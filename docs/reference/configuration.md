@@ -143,7 +143,7 @@
 
 ## 实例级仓库绑定
 
-测验仓库绑定信息也保存在数据库表 `runtime_kv` 中，但使用独立键 `exam_repo_binding`，不属于 `runtime_config`，也不是环境变量配置。
+内容仓库绑定信息也保存在数据库表 `runtime_kv` 中，但使用独立键 `exam_repo_binding`，不属于 `runtime_config`，也不是环境变量配置。当前内容仓库可同步测验与职位。
 
 当前结构最小为：
 

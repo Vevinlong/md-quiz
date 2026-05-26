@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -15,6 +16,14 @@ from backend.md_quiz.storage import JobStore
 ADMIN_CANDIDATE_RESUME_UPLOAD_JOB_KIND = "admin_candidate_resume_upload"
 ADMIN_CANDIDATE_RESUME_REPARSE_JOB_KIND = "admin_candidate_resume_reparse"
 _STAGED_RESUME_DIR = Path(deps.BASE_DIR) / "tmp" / "resume_jobs"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _duration_seconds(started_at: datetime, finished_at: datetime) -> int:
+    return max(0, int((finished_at - started_at).total_seconds()))
 
 
 def _details_status_from_payload(payload: dict[str, Any]) -> str:
@@ -70,8 +79,40 @@ def _cleanup_staged_resume(staged_path: str) -> None:
         pass
 
 
-def _process_candidate_resume_upload(data: bytes, *, filename: str, mime: str) -> dict[str, Any]:
+def _candidate_default_job_description(candidate_id: int) -> dict[str, Any] | None:
+    try:
+        rows = deps.list_candidate_job_descriptions(int(candidate_id))
+    except Exception:
+        rows = []
+    for row in rows:
+        try:
+            job_description_id = int((row or {}).get("id") or 0)
+        except Exception:
+            continue
+        if job_description_id <= 0:
+            continue
+        job_description = deps.get_job_description(job_description_id)
+        if job_description and str(job_description.get("status") or "").strip().lower() == "active":
+            return job_description
+    return None
+
+
+def _process_candidate_resume_upload(
+    data: bytes,
+    *,
+    filename: str,
+    mime: str,
+    job_description_id: int,
+) -> dict[str, Any]:
+    try:
+        normalized_job_description_id = int(job_description_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="请选择职位") from exc
+    job_description = deps.get_job_description(normalized_job_description_id) if normalized_job_description_id > 0 else None
+    if not job_description or str(job_description.get("status") or "").strip().lower() != "active":
+        raise HTTPException(status_code=400, detail="请选择有效职位")
     size_bytes = len(data)
+    operation_started_at = _utc_now()
     resume_ingest_service.log_resume_parse_stage(
         "request.accepted",
         flow="candidate_upload",
@@ -82,6 +123,7 @@ def _process_candidate_resume_upload(data: bytes, *, filename: str, mime: str) -
         data=data,
         filename=filename,
         mime=mime,
+        job_description=job_description,
         flow="candidate_upload",
         enable_stage_logs=True,
     )
@@ -105,8 +147,15 @@ def _process_candidate_resume_upload(data: bytes, *, filename: str, mime: str) -
         old_name = str(existed.get("name") or "").strip()
         if old_name in {"", "未知"} and candidate_name != "未知":
             deps.update_candidate(candidate_id, name=candidate_name, phone=parsed_phone)
+        deps.add_candidate_job_descriptions(candidate_id, [normalized_job_description_id])
     else:
-        candidate_id = int(deps.create_candidate(name=candidate_name, phone=parsed_phone))
+        candidate_id = int(
+            deps.create_candidate(
+                name=candidate_name,
+                phone=parsed_phone,
+                job_description_id=normalized_job_description_id,
+            )
+        )
         created = True
 
     deps.update_candidate_resume(
@@ -117,12 +166,16 @@ def _process_candidate_resume_upload(data: bytes, *, filename: str, mime: str) -
         resume_size=size_bytes,
         resume_parsed=payload["resume_parsed"],
     )
+    operation_finished_at = _utc_now()
     try:
         deps.log_event(
             "candidate.resume.parse",
             actor="admin",
             candidate_id=candidate_id,
             llm_total_tokens=(int(payload.get("llm_total_tokens") or 0) or None),
+            started_at=operation_started_at,
+            finished_at=operation_finished_at,
+            duration_seconds=_duration_seconds(operation_started_at, operation_finished_at),
         )
         if created:
             deps.log_event(
@@ -158,6 +211,7 @@ def _process_candidate_resume_reparse(candidate_id: int, data: bytes, *, filenam
 
     size_bytes = len(data)
     current_phone = str(candidate.get("phone") or "").strip()
+    operation_started_at = _utc_now()
     resume_ingest_service.log_resume_parse_stage(
         "request.accepted",
         flow="candidate_reparse",
@@ -169,6 +223,7 @@ def _process_candidate_resume_reparse(candidate_id: int, data: bytes, *, filenam
         data=data,
         filename=filename,
         mime=mime,
+        job_description=_candidate_default_job_description(candidate_id),
         current_phone=current_phone,
         flow="candidate_reparse",
         candidate_id=candidate_id,
@@ -186,12 +241,16 @@ def _process_candidate_resume_reparse(candidate_id: int, data: bytes, *, filenam
         resume_size=size_bytes,
         resume_parsed=payload["resume_parsed"],
     )
+    operation_finished_at = _utc_now()
     try:
         deps.log_event(
             "candidate.resume.parse",
             actor="admin",
             candidate_id=int(candidate_id),
             llm_total_tokens=(int(payload.get("llm_total_tokens") or 0) or None),
+            started_at=operation_started_at,
+            finished_at=operation_finished_at,
+            duration_seconds=_duration_seconds(operation_started_at, operation_finished_at),
             meta={"reparse": True},
         )
     except Exception:
@@ -208,23 +267,24 @@ def _process_candidate_resume_reparse(candidate_id: int, data: bytes, *, filenam
     return {"candidate_id": candidate_id, "candidate": deps.get_candidate(candidate_id) or candidate}
 
 
-def upload_candidate_resume(file: UploadFile) -> dict[str, Any]:
+def upload_candidate_resume(file: UploadFile, *, job_description_id: int) -> dict[str, Any]:
     data = resume_ingest_service.read_resume_bytes(file, missing_file_detail="缺少简历文件")
     return _process_candidate_resume_upload(
         data,
         filename=str(file.filename or ""),
         mime=str(file.content_type or ""),
+        job_description_id=int(job_description_id),
     )
 
 
-def enqueue_candidate_resume_upload(file: UploadFile) -> dict[str, Any]:
+def enqueue_candidate_resume_upload(file: UploadFile, *, job_description_id: int) -> dict[str, Any]:
     data = resume_ingest_service.read_resume_bytes(file, missing_file_detail="缺少简历文件")
     filename = str(file.filename or "")
     mime = str(file.content_type or "")
     staged = _stage_resume_bytes(data=data, filename=filename, mime=mime)
     job = JobStore().enqueue(
         ADMIN_CANDIDATE_RESUME_UPLOAD_JOB_KIND,
-        payload=staged,
+        payload={**staged, "job_description_id": int(job_description_id)},
         source="admin-resume-upload",
     )
     return {
@@ -243,6 +303,7 @@ def process_candidate_resume_upload_job(payload: dict[str, Any] | None) -> dict[
             data,
             filename=str(payload.get("filename") or ""),
             mime=str(payload.get("mime") or ""),
+            job_description_id=int(payload.get("job_description_id") or 0),
         )
         return _job_result_from_candidate_result(result)
     finally:

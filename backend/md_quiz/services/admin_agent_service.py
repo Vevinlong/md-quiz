@@ -214,6 +214,11 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
     evaluation_llm = str(details_data.get("evaluation") or "").strip() or str(
         details_data.get("summary") or ""
     ).strip()
+    try:
+        job_match_score = int(details_data.get("job_match_score"))
+        job_match_score = max(0, min(100, job_match_score))
+    except Exception:
+        job_match_score = None
     raw_admin_evaluations = details_data.get("admin_evaluations") or []
     admin_evaluations = [dict(item) for item in raw_admin_evaluations if isinstance(item, dict)]
 
@@ -238,6 +243,7 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
             "projects": project_rows,
             "projects_raw": projects_raw,
             "evaluation_llm": evaluation_llm,
+            "job_match_score": job_match_score,
             "admin_evaluations": admin_evaluations,
             "details_status": str(details.get("status") or "").strip(),
             "details_error": str(details.get("error") or "").strip(),

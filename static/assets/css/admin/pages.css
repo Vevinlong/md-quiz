@@ -1,3 +1,79 @@
 @layer components {
-  /* 页面样式入口。新页面专属规则优先补到这里。 */
+  @media (min-width: 1280px) {
+    body.admin-body--job-descriptions {
+      overflow: hidden;
+    }
+
+    body.admin-body--job-descriptions main {
+      height: 100vh;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    body.admin-body--job-descriptions .admin-shell {
+      height: calc(100vh - 3rem);
+      min-height: 0;
+      align-items: stretch;
+    }
+
+    body.admin-body--job-descriptions .admin-shell__main {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+    }
+
+    body.admin-body--job-descriptions .admin-header-surface {
+      flex: 0 0 auto;
+    }
+
+    body.admin-body--job-descriptions .admin-page-mount {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .admin-job-description-page {
+      height: 100%;
+      max-height: 100%;
+      align-items: stretch;
+      overflow: hidden;
+    }
+
+    .admin-job-description-list,
+    .admin-job-description-editor {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+    }
+
+    .admin-job-description-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .admin-job-description-items {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+
+    .admin-job-description-editor.admin-right-pane {
+      position: static;
+      top: auto;
+      align-self: stretch;
+    }
+
+    @supports (height: 100dvh) {
+      body.admin-body--job-descriptions main {
+        height: 100dvh;
+        min-height: 100dvh;
+      }
+
+      body.admin-body--job-descriptions .admin-shell {
+        height: calc(100dvh - 3rem);
+      }
+    }
+  }
 }

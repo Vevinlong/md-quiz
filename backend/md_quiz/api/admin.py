@@ -69,14 +69,24 @@ class PublicInviteTogglePayload(BaseModel):
 class CandidateCreatePayload(BaseModel):
     name: str
     phone: str
+    job_description_id: int | None = None
 
 
 class CandidateEvaluationPayload(BaseModel):
     evaluation: str
 
 
+class CandidateJobDescriptionAddPayload(BaseModel):
+    job_description_ids: list[int] = Field(default_factory=list)
+
+
+class CandidateJobDescriptionRemovePayload(BaseModel):
+    job_description_id: int
+
+
 class AssignmentCreatePayload(BaseModel):
-    quiz_key: str
+    quiz_key: str = ""
+    quiz_keys: list[str] = Field(default_factory=list)
     candidate_id: int
     time_limit_seconds: int | str | None = None
     invite_start_date: str
@@ -774,6 +784,39 @@ def _candidate_attempt_results(candidate: dict[str, Any]) -> list[dict[str, Any]
     return out
 
 
+def _normalize_related_quizzes(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _candidate_default_quiz_from_job_rows(rows: list[dict[str, Any]]) -> str:
+    keys = _candidate_default_quizzes_from_job_rows(rows)
+    return keys[0] if keys else ""
+
+
+def _candidate_default_quizzes_from_job_rows(rows: list[dict[str, Any]]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if str(row.get("status") or "").strip().lower() != "active":
+            continue
+        for quiz_key in _normalize_related_quizzes(row.get("related_quizzes")):
+            if quiz_key in seen:
+                continue
+            seen.add(quiz_key)
+            out.append(quiz_key)
+    return out
+
+
 def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) -> dict[str, Any]:
     parsed = candidate.get("resume_parsed") or {}
     if not isinstance(parsed, dict):
@@ -857,6 +900,9 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
     evaluation_llm = str(details_data.get("evaluation") or "").strip() or str(
         details_data.get("summary") or ""
     ).strip()
+    job_match_score = _coerce_int_or_none(details_data.get("job_match_score"))
+    if job_match_score is not None:
+        job_match_score = max(0, min(100, job_match_score))
     raw_admin_evaluations = details_data.get("admin_evaluations")
     admin_evaluations: list[dict[str, Any]] = []
     if isinstance(raw_admin_evaluations, list):
@@ -889,11 +935,37 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
     if isinstance(emails, list) and emails:
         email = str(emails[0] or "").strip()
 
+    job_status_labels = {
+        "draft": "草稿",
+        "active": "启用",
+        "archived": "归档",
+    }
+    try:
+        job_description_rows = deps.list_candidate_job_descriptions(int(candidate_id))
+    except Exception:
+        job_description_rows = []
+    job_descriptions = [
+        {
+            "id": int(item.get("id") or 0),
+            "title": str(item.get("title") or "").strip(),
+            "status": str(item.get("status") or "").strip().lower(),
+            "status_label": job_status_labels.get(str(item.get("status") or "").strip().lower(), str(item.get("status") or "").strip()),
+            "related_quizzes": _normalize_related_quizzes(item.get("related_quizzes")),
+            "linked_at": _iso_or_empty(item.get("linked_at")),
+        }
+        for item in job_description_rows
+        if int(item.get("id") or 0) > 0
+    ]
+    default_quiz_keys = _candidate_default_quizzes_from_job_rows(job_description_rows)
+    default_quiz_key = default_quiz_keys[0] if default_quiz_keys else ""
+
     return {
         "candidate": {
             "id": int(candidate.get("id") or candidate_id),
             "name": str(candidate.get("name") or "").strip(),
             "phone": str(candidate.get("phone") or "").strip(),
+            "default_quiz_key": default_quiz_key,
+            "default_quiz_keys": default_quiz_keys,
             "created_at": _iso_or_empty(candidate.get("created_at")),
             "deleted_at": _iso_or_empty(candidate.get("deleted_at")),
             "resume_filename": str(candidate.get("resume_filename") or "").strip(),
@@ -912,11 +984,13 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
             "projects_raw": projects_raw,
             "projects_raw_blocks": project_blocks,
             "evaluation_llm": evaluation_llm,
+            "job_match_score": job_match_score,
             "admin_evaluations": admin_evaluations,
             "details_status": str(details.get("status") or "").strip(),
             "details_error": str(details.get("error") or "").strip(),
             "attempt_results": _candidate_attempt_results(candidate),
         },
+        "job_descriptions": job_descriptions,
         "resume_parsed": parsed,
     }
 
@@ -1576,6 +1650,7 @@ def _serialize_quiz_analytics_detail(
 from .admin_assignment_routes import router as admin_assignment_router
 from .admin_candidate_routes import router as admin_candidate_router
 from .admin_core_routes import router as admin_core_router
+from .admin_job_description_routes import router as admin_job_description_router
 from .admin_monitor_routes import router as admin_monitor_router
 from .admin_quiz_analytics_routes import router as admin_quiz_analytics_router
 from .admin_quiz_routes import router as admin_quiz_router
@@ -1584,5 +1659,6 @@ router.include_router(admin_core_router)
 router.include_router(admin_quiz_router)
 router.include_router(admin_quiz_analytics_router)
 router.include_router(admin_candidate_router)
+router.include_router(admin_job_description_router)
 router.include_router(admin_assignment_router)
 router.include_router(admin_monitor_router)

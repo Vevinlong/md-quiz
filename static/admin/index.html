@@ -13,7 +13,12 @@
     <script type="module" src="/static/admin/app.js"></script>
     <script defer src="/static/assets/js/alpine.min.js"></script>
   </head>
-  <body x-data="adminApp()" x-init="boot()" class="min-h-screen bg-transparent text-slate-900">
+  <body
+    x-data="adminApp()"
+    x-init="boot()"
+    :class="route.name === 'job-descriptions' ? 'admin-body--job-descriptions' : ''"
+    class="min-h-screen bg-transparent text-slate-900"
+  >
     <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div class="absolute -left-28 top-0 h-72 w-72 rounded-full bg-blue-500/18 blur-3xl"></div>
       <div class="absolute right-0 top-12 h-80 w-80 rounded-full bg-emerald-500/16 blur-3xl"></div>
@@ -175,7 +180,7 @@
               </div>
             </div>
 
-            <div x-ref="pageMount"></div>
+            <div x-ref="pageMount" class="admin-page-mount"></div>
 
             <div x-show="(notices || []).length" class="pointer-events-none fixed bottom-6 left-6 right-6 z-40 overflow-hidden">
               <div class="flex justify-end gap-3 overflow-hidden">

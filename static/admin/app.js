@@ -4,6 +4,7 @@ import { createAdminShellModule } from "./modules/shell.js";
 import { createAdminState } from "./modules/state.js";
 import { createAdminAssignmentsModule } from "./modules/pages/assignments.js";
 import { createAdminCandidatesModule } from "./modules/pages/candidates.js";
+import { createAdminJobDescriptionsModule } from "./modules/pages/job-descriptions.js";
 import { createAdminLogsModule } from "./modules/pages/logs.js";
 import { createAdminQuizAnalyticsModule } from "./modules/pages/quiz-analytics.js";
 import { createAdminQuizzesModule } from "./modules/pages/quizzes.js";
@@ -18,6 +19,7 @@ const register = () => {
     ...createAdminQuizzesModule(),
     ...createAdminQuizAnalyticsModule(),
     ...createAdminCandidatesModule(),
+    ...createAdminJobDescriptionsModule(),
     ...createAdminAssignmentsModule(),
     ...createAdminLogsModule(),
     ...createAdminStatusModule(),

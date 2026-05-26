@@ -303,6 +303,33 @@ def _normalize_resume_summary(value: Any) -> str:
     return text
 
 
+def _normalize_resume_evaluation(value: Any) -> str:
+    text = re.sub(r"\s+", " ", _resume_string(value)).strip()
+    if not text:
+        return ""
+    if len(text) > 260:
+        text = text[:260].rstrip(" ,，;；.。")
+        if text:
+            text += "…"
+    return text
+
+
+def _normalize_job_match_score(value: Any) -> int | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    match = re.search(r"-?\d+(?:\.\d+)?", raw)
+    if not match:
+        return None
+    try:
+        score = int(round(float(match.group(0))))
+    except Exception:
+        return None
+    return max(0, min(100, score))
+
+
 def _parse_llm_json_object(raw: str, *, label: str) -> dict[str, Any]:
     text = str(raw or "").strip()
     if not text:
@@ -325,6 +352,7 @@ def _parse_llm_json_object(raw: str, *, label: str) -> dict[str, Any]:
 def _normalize_resume_details_from_obj(obj: dict[str, Any]) -> dict[str, Any]:
     details: dict[str, Any] = {
         "summary": _normalize_resume_summary(obj.get("summary")),
+        "evaluation": _normalize_resume_evaluation(obj.get("evaluation")),
         "gender": _normalize_resume_gender(obj.get("gender")),
         "emails": _resume_unique_str_list(obj.get("emails"), limit=10),
         "skills": _resume_unique_str_list(obj.get("skills"), limit=40),
@@ -333,6 +361,7 @@ def _normalize_resume_details_from_obj(obj: dict[str, Any]) -> dict[str, Any]:
         "certifications": _resume_unique_str_list(obj.get("certifications"), limit=20),
         "publications": _resume_unique_str_list(obj.get("publications"), limit=20),
         "experience_years": _resume_num_or_none(obj.get("experience_years")),
+        "job_match_score": _normalize_job_match_score(obj.get("job_match_score")),
     }
 
     english_obj = obj.get("english") or {}
@@ -441,13 +470,13 @@ def _resume_details_has_content(details: dict[str, Any]) -> bool:
     if not isinstance(details, dict):
         return False
     for key, value in details.items():
-        if key in {"summary", "gender", "highest_education", "projects_raw"} and _resume_string(value):
+        if key in {"summary", "evaluation", "gender", "highest_education", "projects_raw"} and _resume_string(value):
             return True
         if isinstance(value, list) and any(bool(_resume_string(item)) or isinstance(item, dict) for item in value):
             return True
         if isinstance(value, dict) and any(v not in (None, "", [], {}) for v in value.values()):
             return True
-        if key == "experience_years" and value is not None:
+        if key in {"experience_years", "job_match_score"} and value is not None:
             return True
     return False
 
@@ -469,7 +498,7 @@ def _resume_parse_system_prompt() -> str:
   "name": string,
   "phone": string,
   "confidence": {"name": number, "phone": number},
-  "summary": string,
+  "evaluation": string,
   "gender": "男"|"女"|"未知"|"",
   "emails": string[],
   "skills": string[],
@@ -490,28 +519,48 @@ def _resume_parse_system_prompt() -> str:
   "awards": string[],
   "certifications": string[],
   "publications": string[],
-  "experience_years": number|null
+  "experience_years": number|null,
+  "job_match_score": number|null
 }
 
 补充标准：
-- summary 用中文写 80-120 字候选人概览，不要换行。
+- evaluation 用中文写 120-200 字候选人简历评价，不是简历摘要应从招聘筛选视角评价候选人的经历质量、能力亮点、风险点和可信度；如果提供了职位，可结合岗位要求评价适配性，但不要输出单独的匹配说明字段，不要换行。
 - educations 按时间从早到晚排序。
 - work_experiences 最多 6 条，按时间从近到远。
 - projects 最多 6 条。
 - experience_blocks 最多 20 条，body 尽量保留原文内容和换行结构。
 - skills 只提取简历明确写出的技能、工具、技术栈、关键词。
 - english 识别四级/六级分数，例如 CET-4 510、四级 560。
+- job_match_score 是简历针对jd的匹配度评分，0-100 的整数。
 """.strip()
 
 
-def _resume_parse_prompt(filename: str) -> str:
-    return (
+def _resume_parse_prompt(filename: str, *, job_description: dict[str, Any] | None = None) -> str:
+    base_prompt = (
         f"请解析附件简历《{str(filename or '').strip() or 'resume'}》。"
         "请一次性抽取候选人的姓名、手机号以及所有结构化简历信息，并严格按要求输出 JSON。"
     )
+    return f"{base_prompt}\n\n{_resume_jd_prompt_block(job_description or {})}"
 
 
-def parse_resume_all_llm(*, data: bytes, filename: str, mime: str = "") -> dict[str, Any]:
+def _resume_jd_prompt_block(job_description: dict[str, Any]) -> str:
+    title = str((job_description or {}).get("title") or "").strip()
+    content = str((job_description or {}).get("content_md") or "").strip()
+    return (
+        "【职位】\n"
+        f"标题：{title or '未命名岗位'}\n"
+        "正文：\n"
+        f"{content}"
+    ).strip()
+
+
+def parse_resume_all_llm(
+    *,
+    data: bytes,
+    filename: str,
+    mime: str = "",
+    job_description: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Parse all required resume fields in a single LLM call.
 
@@ -526,7 +575,7 @@ def parse_resume_all_llm(*, data: bytes, filename: str, mime: str = "") -> dict[
         raise RuntimeError("RESUME_USE_LLM 已禁用")
 
     system = _resume_parse_system_prompt()
-    prompt = _resume_parse_prompt(filename)
+    prompt = _resume_parse_prompt(filename, job_description=job_description)
     ext = os.path.splitext(str(filename or "").lower())[1]
     if ext in _IMAGE_RESUME_EXTS:
         image_url = _image_data_url_from_bytes(data, filename)

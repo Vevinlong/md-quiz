@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from time import sleep
 
 from backend.md_quiz.config import logger
@@ -73,6 +74,8 @@ class JobService:
                     from backend.md_quiz.storage.db import (
                         get_candidate,
                         get_candidate_resume,
+                        get_job_description,
+                        list_candidate_job_descriptions,
                         update_candidate,
                         update_candidate_resume_parsed,
                     )
@@ -88,11 +91,39 @@ class JobService:
                     if not resume or not resume.get("resume_bytes"):
                         return self.store.fail(job.id, "候选人缺少简历文件")
 
+                    parse_started_at = str(job.started_at or "").strip() or datetime.now(timezone.utc).isoformat()
+                    job_description = None
+                    try:
+                        job_description_id = int(payload.get("job_description_id") or 0)
+                    except Exception:
+                        job_description_id = 0
+                    if job_description_id > 0:
+                        candidate_job_description = get_job_description(job_description_id)
+                        if candidate_job_description and str(candidate_job_description.get("status") or "").strip().lower() == "active":
+                            job_description = candidate_job_description
+                    if job_description is None:
+                        try:
+                            candidate_job_description_rows = list_candidate_job_descriptions(candidate_id)
+                        except Exception:
+                            candidate_job_description_rows = []
+                        for row in candidate_job_description_rows:
+                            try:
+                                linked_job_description_id = int((row or {}).get("id") or 0)
+                            except Exception:
+                                continue
+                            if linked_job_description_id <= 0:
+                                continue
+                            candidate_job_description = get_job_description(linked_job_description_id)
+                            if candidate_job_description and str(candidate_job_description.get("status") or "").strip().lower() == "active":
+                                job_description = candidate_job_description
+                                break
+
                     with audit_context(meta={}):
                         parsed = parse_resume_all_llm(
                             data=resume.get("resume_bytes") or b"",
                             filename=str(resume.get("resume_filename") or ""),
                             mime=str(resume.get("resume_mime") or ""),
+                            job_description=job_description,
                         ) or {}
                         ctx = get_audit_context()
                         meta = ctx.get("meta") if isinstance(ctx, dict) else {}
@@ -118,6 +149,7 @@ class JobService:
                             update_candidate(candidate_id, name=parsed_name, phone=expected_phone or str(current.get("phone") or ""))
 
                     try:
+                        parse_finished_at = datetime.now(timezone.utc).isoformat()
                         log_event(
                             "candidate.resume.parse",
                             actor="system",
@@ -125,6 +157,8 @@ class JobService:
                             quiz_key=(quiz_key or None),
                             token=(token or None),
                             llm_total_tokens=(llm_total_tokens or None),
+                            started_at=parse_started_at,
+                            finished_at=parse_finished_at,
                             meta={"public_invite": True},
                         )
                     except Exception:

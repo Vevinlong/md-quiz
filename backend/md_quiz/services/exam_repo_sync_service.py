@@ -9,6 +9,7 @@ from backend.md_quiz.services import (
     exam_repo_sync_migration as migration_ops,
     exam_repo_sync_repo as repo_ops,
     exam_repo_sync_state as state_ops,
+    job_description_repo_sync as jd_ops,
 )
 from backend.md_quiz.services.exam_repo_sync_shared import (
     EXAM_SYNC_JOB_KIND,
@@ -53,6 +54,7 @@ def perform_exam_repo_sync(repo_url: str, *, job_id: str | None = None) -> dict:
             git_commit = repo_ops._clone_repo(normalized_url, repo_root)
             synced_at = datetime.now(UTC)
             source_paths = repo_ops._load_quiz_repo_manifest(repo_root)
+            job_description_source_paths = jd_ops._load_job_description_repo_manifest(repo_root)
 
             candidates: list[dict[str, object]] = []
             duplicate_guard: dict[str, str] = {}
@@ -67,6 +69,18 @@ def perform_exam_repo_sync(repo_url: str, *, job_id: str | None = None) -> dict:
                         raise ExamRepoSyncError(f"仓库内存在重复测验 id：{exam_id}（{other} / {source_path}）")
                     duplicate_guard[exam_id] = source_path
                 candidates.append({"source_path": source_path, "raw_exam_id": exam_id})
+
+            job_description_candidates: list[dict[str, object]] = []
+            job_description_duplicate_guard: dict[str, str] = {}
+            for source_path in job_description_source_paths:
+                markdown_text = (repo_root / source_path).read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+                jd_key = jd_ops._read_frontmatter_job_description_id(markdown_text)
+                if jd_key:
+                    other = job_description_duplicate_guard.get(jd_key)
+                    if other:
+                        raise ExamRepoSyncError(f"仓库内存在重复职位 id：{jd_key}（{other} / {source_path}）")
+                    job_description_duplicate_guard[jd_key] = source_path
+                job_description_candidates.append({"source_path": source_path, "raw_jd_key": jd_key})
 
             discovered_quiz_keys: set[str] = set()
             created_count = 0
@@ -96,7 +110,7 @@ def perform_exam_repo_sync(repo_url: str, *, job_id: str | None = None) -> dict:
                         existing_by_path = repo_ops._find_existing_exam_by_source_path(normalized_url, source_path)
                         quiz_key = str((existing_by_path or {}).get("quiz_key") or "").strip()
                     message = str(exc)
-                    repo_errors.append({"source_path": source_path, "quiz_key": quiz_key, "error": message})
+                    repo_errors.append({"kind": "quiz", "source_path": source_path, "quiz_key": quiz_key, "error": message})
                     if quiz_key:
                         apply_ops._mark_exam_sync_error(
                             quiz_key=quiz_key,
@@ -106,6 +120,42 @@ def perform_exam_repo_sync(repo_url: str, *, job_id: str | None = None) -> dict:
                             message=message,
                             synced_at=synced_at,
                         )
+
+            created_job_description_count = 0
+            updated_job_description_count = 0
+            unchanged_job_description_count = 0
+            job_description_error_count = 0
+            for entry in job_description_candidates:
+                source_path = str(entry.get("source_path") or "").strip()
+                raw_jd_key = str(entry.get("raw_jd_key") or "").strip()
+                try:
+                    candidate = jd_ops._build_job_description_candidate(repo_root, normalized_url, git_commit, source_path)
+                    result = jd_ops._sync_job_description_candidate(candidate, synced_at=synced_at)
+                    if result["action"] == "created":
+                        created_job_description_count += 1
+                    elif result["action"] == "updated":
+                        updated_job_description_count += 1
+                    else:
+                        unchanged_job_description_count += 1
+                except Exception as exc:
+                    job_description_error_count += 1
+                    message = str(exc)
+                    repo_errors.append({"kind": "job_description", "source_path": source_path, "jd_key": raw_jd_key, "error": message})
+                    jd_ops.mark_job_description_sync_error(
+                        jd_key=raw_jd_key,
+                        source_path=source_path,
+                        git_repo_url=normalized_url,
+                        last_synced_commit=git_commit,
+                        message=message,
+                        last_sync_at=synced_at,
+                    )
+
+            archived_job_description_count = jd_ops.archive_missing_repo_job_descriptions(
+                git_repo_url=normalized_url,
+                active_source_paths=job_description_source_paths,
+                last_synced_commit=git_commit,
+                last_sync_at=synced_at,
+            )
 
             deleted_count = 0
             for exam in repo_ops.list_quiz_definitions():
@@ -131,7 +181,13 @@ def perform_exam_repo_sync(repo_url: str, *, job_id: str | None = None) -> dict:
                 "unchanged_versions": unchanged_count,
                 "retired_exams": deleted_count,
                 "deleted_exams": deleted_count,
-                "error_count": error_count,
+                "scanned_job_descriptions": len(job_description_source_paths),
+                "created_job_descriptions": created_job_description_count,
+                "updated_job_descriptions": updated_job_description_count,
+                "unchanged_job_descriptions": unchanged_job_description_count,
+                "archived_job_descriptions": archived_job_description_count,
+                "job_description_error_count": job_description_error_count,
+                "error_count": error_count + job_description_error_count,
                 "errors": repo_errors,
                 "started_at": started_at,
                 "finished_at": finished_at,

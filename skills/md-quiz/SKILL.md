@@ -1,6 +1,6 @@
 ---
 name: md-quiz
-description: Use this skill as the default entry point when creating, editing, reviewing, migrating, or debugging md-quiz repositories and quiz.md files. It routes quiz content and QML syntax work to qml-authoring, and routes repository structure, md-quiz-repo.yaml, quiz paths, assets, and sync contract work to quiz-repo-spec.
+description: Use this skill as the default entry point when creating, editing, reviewing, migrating, or debugging md-quiz repositories, quiz.md files, and synced position files. It routes quiz content and QML syntax work to qml-authoring, and routes repository structure, md-quiz-repo.yaml, quiz paths, position paths, assets, and sync contract work to quiz-repo-spec.
 ---
 
 # MD Quiz
@@ -12,6 +12,7 @@ description: Use this skill as the default entry point when creating, editing, r
 - 新建一份 `md-quiz` 问卷
 - 维护或修订 `quizzes/<quiz_id>/quiz.md`
 - 调整 `md-quiz-repo.yaml`、`assets/` 或 quiz 目录结构
+- 调整 `job-descriptions/<jd_key>/jd.md` 目录结构或同步清单
 - 排查 QML 语法问题、parser 契约问题、repo sync 问题
 - 用户只知道“要维护问卷”，但还没明确是语法问题还是仓库问题
 
@@ -31,6 +32,7 @@ description: Use this skill as the default entry point when creating, editing, r
 3. 若是以下内容，转到 [../quiz-repo-spec/SKILL.md](../quiz-repo-spec/SKILL.md)：
    - `md-quiz-repo.yaml`
    - `quizzes/<quiz_id>/quiz.md` 路径和目录命名
+   - `job-descriptions/<jd_key>/jd.md` 路径和目录命名
    - `assets/` 资源组织
    - repo-relative `source_path`
    - 同步失败、路径失败、资源越界
