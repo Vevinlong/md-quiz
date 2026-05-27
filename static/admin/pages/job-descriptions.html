@@ -129,7 +129,7 @@
 
   <section
     x-show="adminCompactPanelVisible('job-descriptions', 'editor')"
-    class="admin-job-description-editor admin-surface admin-edge-panel admin-right-pane flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/82 shadow-[var(--admin-shadow)] backdrop-blur-xl md:max-xl:h-[calc(100dvh-2.5rem)] md:max-xl:max-h-[calc(100dvh-2.5rem)]"
+    class="admin-job-description-editor admin-surface admin-edge-panel admin-right-pane flex min-h-0 flex-col rounded-3xl border border-white/70 bg-white/82 shadow-[var(--admin-shadow)] backdrop-blur-xl md:max-xl:h-[calc(100dvh-2.5rem)] md:max-xl:max-h-[calc(100dvh-2.5rem)]"
   >
     <div class="shrink-0 flex flex-col gap-2 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
       <div class="min-w-0">
@@ -172,7 +172,7 @@
       </div>
     </div>
 
-    <div class="flex min-h-0 flex-1 flex-col divide-y divide-blue-100/70 overflow-hidden border-t border-blue-100/70">
+    <div class="flex min-h-0 flex-col divide-y divide-blue-100/70 border-t border-blue-100/70">
       <section class="shrink-0 px-5 py-2">
         <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_10rem]">
           <label class="block min-w-0">
@@ -223,7 +223,7 @@
               x-text="jobDescriptionRelatedQuizLabels().join('、')"
             ></span>
           </div>
-          <div class="mt-2 grid max-h-32 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+          <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <template x-for="quiz in jobDescriptionRelatedQuizOptions()" :key="quiz.quiz_key">
               <label
                 class="flex min-w-0 items-start gap-2 rounded-lg border border-blue-100 bg-white/80 px-3 py-2 text-sm transition"
@@ -249,7 +249,7 @@
         </div>
       </section>
 
-      <section class="flex min-h-[28rem] flex-1 flex-col overflow-hidden md:min-h-0">
+      <section class="flex min-h-[28rem] flex-col">
         <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 px-5 py-2">
           <div class="inline-flex rounded-lg border border-blue-100 bg-white/80 p-0.5" role="tablist" aria-label="职位内容视图">
             <template x-for="tab in jobDescriptionContentTabs()" :key="tab.key">
@@ -265,23 +265,22 @@
           </div>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-hidden border-t border-blue-100/70">
+        <div class="border-t border-blue-100/70">
           <textarea
             x-show="(jobDescriptionContentTab || 'preview') === 'edit'"
             x-ref="jobDescriptionContentEditor"
-            data-fixed-panel="true"
             x-model="jobDescriptionForm.content_md"
             x-init="$nextTick(() => autosizeJobDescriptionEditor($el))"
             @input="autosizeJobDescriptionEditor($event.target)"
             :readonly="jobDescriptionReadOnly()"
             spellcheck="false"
-            class="block h-full min-h-0 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-slate-50/70 px-5 py-4 font-mono text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:bg-white"
+            class="block min-h-[28rem] w-full resize-none overflow-hidden border-0 bg-slate-50/70 px-5 py-4 font-mono text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:bg-white"
             placeholder="# 岗位职责&#10;&#10;- 负责核心服务设计与实现&#10;- 参与系统稳定性建设&#10;&#10;## 任职要求&#10;&#10;- 熟悉 Python / Web API / PostgreSQL"
           ></textarea>
 
           <div
             x-show="(jobDescriptionContentTab || 'preview') === 'preview'"
-            class="h-full min-h-0 overflow-y-auto overscroll-contain bg-white/50 px-5 py-4"
+            class="min-h-[28rem] bg-white/50 px-5 py-4"
           >
             <div
               x-show="jobDescriptionPreviewHtml()"

@@ -102,7 +102,14 @@ def test_admin_logs_page_supports_time_range_display() -> None:
 
 def test_admin_candidates_page_exposes_pagination_controls() -> None:
     source = (ROOT / "static" / "admin" / "pages" / "candidates.html").read_text(encoding="utf-8")
+    index_source = (ROOT / "static" / "admin" / "index.html").read_text(encoding="utf-8")
+    css_source = (ROOT / "static" / "assets" / "css" / "admin" / "pages.css").read_text(encoding="utf-8")
 
+    assert "admin-body--candidates" in index_source
+    assert "admin-candidates-page" in source
+    assert "admin-candidate-list" in source
+    assert "admin-candidate-items" in source
+    assert "admin-candidate-create" in source
     assert "candidatesHavePagination" in source
     assert "candidateForm.job_description_id" in source
     assert "candidateResumeUploadForm.job_description_id" in source
@@ -110,6 +117,12 @@ def test_admin_candidates_page_exposes_pagination_controls() -> None:
     assert "上一页" in source
     assert "下一页" in source
     assert "末页" in source
+    assert "body.admin-body--candidates .admin-page-mount" in css_source
+    assert "body.admin-body--candidates {\n      overflow: auto;" in css_source
+    assert "body.admin-body--candidates .admin-page-mount {\n      min-height: 0;\n      overflow: visible;" in css_source
+    assert ".admin-candidate-create.admin-right-pane" in css_source
+    assert ".admin-candidate-create.admin-right-pane {\n      position: sticky;" in css_source
+    assert ".admin-candidate-create.admin-right-pane {\n      position: sticky;\n      top: 1.5rem;\n      display: flex;\n      height: calc(100vh - 3rem);" in css_source
 
 
 def test_admin_candidates_module_uses_page_query_param() -> None:
@@ -182,6 +195,7 @@ def test_admin_job_descriptions_route_nav_and_page_exist() -> None:
     index_source = (ROOT / "static" / "admin" / "index.html").read_text(encoding="utf-8")
     page_source = (ROOT / "static" / "admin" / "pages" / "job-descriptions.html").read_text(encoding="utf-8")
     module_source = (ROOT / "static" / "admin" / "modules" / "pages" / "job-descriptions.js").read_text(encoding="utf-8")
+    css_source = (ROOT / "static" / "assets" / "css" / "admin" / "pages.css").read_text(encoding="utf-8")
 
     assert '"/static/admin/pages/job-descriptions.html"' in router_source
     assert 'path === "/admin/job-descriptions"' in router_source
@@ -202,7 +216,14 @@ def test_admin_job_descriptions_route_nav_and_page_exist() -> None:
     assert 'aria-label="职位内容视图"' in page_source
     assert "jobDescriptionContentTabs()" in page_source
     assert "(jobDescriptionContentTab || 'preview') === 'preview'" in page_source
-    assert "overflow-y-auto overscroll-contain" in page_source
+    assert "overflow-y-auto overscroll-contain" not in page_source
+    assert 'data-fixed-panel="true"' not in page_source
+    assert "textarea.dataset?.fixedPanel" not in module_source
+    assert "body.admin-body--job-descriptions .admin-page-mount" in css_source
+    assert "overflow: visible;" in css_source
+    assert ".admin-job-description-list" in css_source
+    assert "position: sticky;" in css_source
+    assert ".admin-job-description-items" in css_source
     assert "jobDescriptionContentTabs()" in module_source
     assert "normalizeJobDescriptionRelatedQuizzes" in module_source
     assert "related_quizzes" in module_source

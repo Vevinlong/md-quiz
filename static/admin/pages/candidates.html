@@ -1,4 +1,4 @@
-<div x-show="route.name === 'candidates'" class="admin-mobile-pane-grid grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+<div x-show="route.name === 'candidates'" class="admin-candidates-page admin-mobile-pane-grid grid min-h-0 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
   <div
     x-show="shouldShowAdminCompactTabs('candidates')"
     x-cloak
@@ -22,7 +22,7 @@
 
   <section
     x-show="adminCompactPanelVisible('candidates', 'list')"
-    class="admin-surface admin-edge-panel overflow-hidden rounded-3xl border border-white/70 bg-white/82 shadow-[var(--admin-shadow)] backdrop-blur-xl"
+    class="admin-candidate-list admin-surface admin-edge-panel overflow-hidden rounded-3xl border border-white/70 bg-white/82 shadow-[var(--admin-shadow)] backdrop-blur-xl"
   >
     <div class="flex flex-col gap-3 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
       <div>
@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <div class="divide-y divide-blue-100/70 border-t border-blue-100/70">
+    <div class="admin-candidate-items divide-y divide-blue-100/70 border-t border-blue-100/70">
       <template x-for="item in candidates.items" :key="item.id">
         <button
           type="button"
@@ -116,7 +116,7 @@
 
   <section
     x-show="adminCompactPanelVisible('candidates', 'create')"
-    class="admin-surface admin-edge-panel admin-right-pane overflow-hidden rounded-3xl border border-white/70 bg-white/82 p-0 shadow-[var(--admin-shadow)] backdrop-blur-xl"
+    class="admin-candidate-create admin-surface admin-edge-panel admin-right-pane overflow-hidden rounded-3xl border border-white/70 bg-white/82 p-0 shadow-[var(--admin-shadow)] backdrop-blur-xl"
   >
     <div class="shrink-0 px-5 py-5">
       <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">创建候选人</h2>

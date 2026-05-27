@@ -193,10 +193,6 @@ export function createAdminJobDescriptionsModule() {
       if (!textarea || !textarea.style || typeof textarea.scrollHeight !== "number") {
         return;
       }
-      if (textarea.dataset?.fixedPanel === "true") {
-        textarea.style.height = "100%";
-        return;
-      }
       const computedStyle = typeof window !== "undefined" && typeof window.getComputedStyle === "function"
         ? window.getComputedStyle(textarea)
         : null;

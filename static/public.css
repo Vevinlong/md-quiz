@@ -638,9 +638,6 @@
   .h-px {
     height: 1px;
   }
-  .max-h-32 {
-    max-height: calc(var(--spacing) * 32);
-  }
   .max-h-72 {
     max-height: calc(var(--spacing) * 72);
   }
@@ -3826,11 +3823,6 @@
   .md\:h-full {
     @media (width >= 48rem) {
       height: 100%;
-    }
-  }
-  .md\:min-h-0 {
-    @media (width >= 48rem) {
-      min-height: calc(var(--spacing) * 0);
     }
   }
   .md\:w-fit {

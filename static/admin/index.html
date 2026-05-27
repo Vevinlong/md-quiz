@@ -16,7 +16,10 @@
   <body
     x-data="adminApp()"
     x-init="boot()"
-    :class="route.name === 'job-descriptions' ? 'admin-body--job-descriptions' : ''"
+    :class="{
+      'admin-body--job-descriptions': route.name === 'job-descriptions',
+      'admin-body--candidates': route.name === 'candidates'
+    }"
     class="min-h-screen bg-transparent text-slate-900"
   >
     <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
