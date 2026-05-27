@@ -5,13 +5,19 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+import psycopg2.pool
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.md_quiz.api import admin_router, public_router, system_router
-from backend.md_quiz.config import PROJECT_ROOT, load_environment_settings, load_runtime_defaults
+from backend.md_quiz.config import (
+    PROJECT_ROOT,
+    load_environment_settings,
+    load_runtime_defaults,
+    logger,
+)
 from backend.md_quiz.mcp import MCP_DOCS_PATH, MCP_PATH, create_mcp_server
 from backend.md_quiz.models import RuntimeConfig
 from backend.md_quiz.services import JobService, RuntimeService
@@ -90,6 +96,18 @@ def create_app() -> FastAPI:
     app.include_router(system_router)
     app.include_router(admin_router)
     app.include_router(public_router)
+
+    @app.exception_handler(psycopg2.pool.PoolError)
+    async def _database_pool_error_handler(request: Request, exc: psycopg2.pool.PoolError):
+        logger.warning(
+            "Database connection pool exhausted: path=%s error=%s",
+            request.url.path,
+            exc,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "数据库连接繁忙，请稍后重试"},
+        )
 
     @app.middleware("http")
     async def _admin_static_no_cache(request: Request, call_next):

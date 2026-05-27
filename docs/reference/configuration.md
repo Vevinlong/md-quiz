@@ -40,6 +40,9 @@
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
 - `DATABASE_URL`
+- `DB_POOL_MINCONN`
+- `DB_POOL_MAXCONN`
+- `DB_POOL_WAIT_TIMEOUT_SECONDS`
 - `LOG_LEVEL`
 
 说明：
@@ -48,6 +51,8 @@
 - `SECRET_KEY` 仅作为兼容回退；当 `APP_SECRET_KEY` 未设置时才会被使用
 - `ASSIGNMENT_TOKEN_SECRET` 用于生成答题 token；未设置时回退到 `APP_SECRET_KEY/SECRET_KEY`
 - `DATABASE_URL` 支持 `postgresql+psycopg2://...`，启动时会被规范化为 `postgresql://...`
+- `DB_POOL_MINCONN` / `DB_POOL_MAXCONN` 控制单个进程内的 PostgreSQL 连接池大小，默认分别为 `1` / `24`
+- `DB_POOL_WAIT_TIMEOUT_SECONDS` 控制连接池繁忙时等待空闲连接的秒数，默认 `3`；超时后 API 返回 `503`
 
 ### Worker / Scheduler
 

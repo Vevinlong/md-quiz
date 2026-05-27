@@ -12,12 +12,20 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 
-from backend.md_quiz.config import DATABASE_URL, logger
+from backend.md_quiz.config import (
+    DATABASE_URL,
+    DB_POOL_MAXCONN,
+    DB_POOL_MINCONN,
+    DB_POOL_WAIT_TIMEOUT_SECONDS,
+    logger,
+)
 
 _POOL_LOCK = threading.Lock()
 _PG_POOL: psycopg2.pool.ThreadedConnectionPool | None = None
-_PG_POOL_MINCONN = 1
-_PG_POOL_MAXCONN = 12
+_PG_POOL_GATE: threading.BoundedSemaphore | None = None
+_PG_POOL_MINCONN = DB_POOL_MINCONN
+_PG_POOL_MAXCONN = DB_POOL_MAXCONN
+_PG_POOL_WAIT_TIMEOUT_SECONDS = DB_POOL_WAIT_TIMEOUT_SECONDS
 
 # 把一个数据库连接字符串 DATABASE_URL 解析成 psycopg2.connect() 需要的参数字典
 def _parse_pg_dsn(database_url: str) -> dict[str, Any]:
@@ -52,11 +60,31 @@ def _get_pg_pool() -> psycopg2.pool.ThreadedConnectionPool:
         return _PG_POOL
 
 
+def _get_pg_pool_gate() -> threading.BoundedSemaphore:
+    global _PG_POOL_GATE
+    with _POOL_LOCK:
+        if _PG_POOL_GATE is None:
+            _PG_POOL_GATE = threading.BoundedSemaphore(_PG_POOL_MAXCONN)
+        return _PG_POOL_GATE
+
+
 @contextmanager
 def conn_scope() -> Iterator[psycopg2.extensions.connection]:
     pool = _get_pg_pool()
-    conn = pool.getconn()
+    gate = _get_pg_pool_gate()
+    acquired = gate.acquire(timeout=_PG_POOL_WAIT_TIMEOUT_SECONDS)
+    if not acquired:
+        logger.warning(
+            "Database connection pool wait timeout: maxconn=%s timeout_seconds=%.3f",
+            _PG_POOL_MAXCONN,
+            _PG_POOL_WAIT_TIMEOUT_SECONDS,
+        )
+        raise psycopg2.pool.PoolError(
+            f"connection pool exhausted after waiting {_PG_POOL_WAIT_TIMEOUT_SECONDS:.3f}s"
+        )
+    conn = None
     try:
+        conn = pool.getconn()
         conn.autocommit = False
         yield conn
         conn.commit()
@@ -68,12 +96,16 @@ def conn_scope() -> Iterator[psycopg2.extensions.connection]:
         raise
     finally:
         try:
-            pool.putconn(conn)
+            if conn is not None:
+                pool.putconn(conn)
         except Exception:
             try:
-                conn.close()
+                if conn is not None:
+                    conn.close()
             except Exception:
                 pass
+        finally:
+            gate.release()
 
 
 def _candidate_query_where_clause(query: str | None) -> tuple[str, list[Any]]:

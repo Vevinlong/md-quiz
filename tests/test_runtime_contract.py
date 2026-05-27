@@ -37,6 +37,30 @@ def test_load_settings_default_database_matches_documented_local_contract(monkey
     assert settings.database_url == "postgresql://admin:pasword@127.0.0.1:5433/md_quiz"
 
 
+def test_load_settings_reads_database_pool_limits(monkeypatch):
+    monkeypatch.setattr(settings_module, "load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setenv("DB_POOL_MINCONN", "2")
+    monkeypatch.setenv("DB_POOL_MAXCONN", "8")
+    monkeypatch.setenv("DB_POOL_WAIT_TIMEOUT_SECONDS", "1.5")
+
+    settings = settings_module.load_environment_settings()
+
+    assert settings.db_pool_minconn == 2
+    assert settings.db_pool_maxconn == 8
+    assert settings.db_pool_wait_timeout_seconds == 1.5
+
+
+def test_load_settings_keeps_database_pool_max_at_least_min(monkeypatch):
+    monkeypatch.setattr(settings_module, "load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setenv("DB_POOL_MINCONN", "5")
+    monkeypatch.setenv("DB_POOL_MAXCONN", "2")
+
+    settings = settings_module.load_environment_settings()
+
+    assert settings.db_pool_minconn == 5
+    assert settings.db_pool_maxconn == 5
+
+
 def test_bootstrap_runtime_wraps_database_errors(monkeypatch):
     def _boom():
         raise RuntimeError("cannot connect to postgres")

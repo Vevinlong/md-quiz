@@ -21,6 +21,34 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _env_int(name: str, default: int, *, minimum: int | None = None) -> int:
+    raw = str(os.getenv(name, "") or "").strip()
+    if not raw:
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = default
+    if minimum is not None:
+        return max(minimum, value)
+    return value
+
+
+def _env_float(name: str, default: float, *, minimum: float | None = None) -> float:
+    raw = str(os.getenv(name, "") or "").strip()
+    if not raw:
+        value = default
+    else:
+        try:
+            value = float(raw)
+        except ValueError:
+            value = default
+    if minimum is not None:
+        return max(minimum, value)
+    return value
+
+
 def _env_csv(name: str) -> tuple[str, ...]:
     raw = str(os.getenv(name, "") or "").strip()
     if not raw:
@@ -86,6 +114,9 @@ class EnvironmentSettings:
     admin_username: str
     admin_password: str
     database_url: str
+    db_pool_minconn: int
+    db_pool_maxconn: int
+    db_pool_wait_timeout_seconds: float
     log_level: str
     worker_poll_seconds: float
     scheduler_poll_seconds: float
@@ -112,6 +143,8 @@ def load_environment_settings() -> EnvironmentSettings:
     load_dotenv()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     app_logger = build_logger(log_level)
+    db_pool_minconn = _env_int("DB_POOL_MINCONN", 1, minimum=1)
+    db_pool_maxconn = max(db_pool_minconn, _env_int("DB_POOL_MAXCONN", 24, minimum=1))
     return EnvironmentSettings(
         app_env=os.getenv("APP_ENV", "development"),
         app_host=os.getenv("APP_HOST", "0.0.0.0"),
@@ -120,6 +153,9 @@ def load_environment_settings() -> EnvironmentSettings:
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "password"),
         database_url=_normalize_database_url(os.getenv("DATABASE_URL", ""), logger=app_logger),
+        db_pool_minconn=db_pool_minconn,
+        db_pool_maxconn=db_pool_maxconn,
+        db_pool_wait_timeout_seconds=_env_float("DB_POOL_WAIT_TIMEOUT_SECONDS", 3.0, minimum=0.0),
         log_level=log_level,
         worker_poll_seconds=float(os.getenv("WORKER_POLL_SECONDS", "2")),
         scheduler_poll_seconds=float(os.getenv("SCHEDULER_POLL_SECONDS", "5")),
@@ -156,6 +192,9 @@ SECRET_KEY = settings.app_secret_key
 ADMIN_USERNAME = settings.admin_username
 ADMIN_PASSWORD = settings.admin_password
 DATABASE_URL = settings.database_url
+DB_POOL_MINCONN = settings.db_pool_minconn
+DB_POOL_MAXCONN = settings.db_pool_maxconn
+DB_POOL_WAIT_TIMEOUT_SECONDS = settings.db_pool_wait_timeout_seconds
 OPENAI_API_KEY = settings.openai_api_key
 OPENAI_BASE_URL = settings.openai_base_url
 OPENAI_MODEL = settings.openai_model
@@ -167,6 +206,9 @@ __all__ = [
     "ADMIN_USERNAME",
     "BACKEND_ROOT",
     "BASE_DIR",
+    "DB_POOL_MAXCONN",
+    "DB_POOL_MINCONN",
+    "DB_POOL_WAIT_TIMEOUT_SECONDS",
     "DATABASE_URL",
     "EXAM_REPO_SYNC_PROXY",
     "EnvironmentSettings",
