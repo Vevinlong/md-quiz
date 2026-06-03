@@ -262,6 +262,54 @@ def test_admin_candidate_detail_can_add_multiple_job_descriptions(monkeypatch, t
     assert list_candidate_job_descriptions(candidate_id) == []
 
 
+def test_admin_candidate_detail_can_update_resume_evaluation(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+    candidate_id = create_candidate("候选人", "13900001004")
+    update_candidate_resume(
+        candidate_id,
+        resume_bytes=b"%PDF-1.4",
+        resume_filename="resume.pdf",
+        resume_mime="application/pdf",
+        resume_size=8,
+        resume_parsed={
+            "details": {
+                "status": "done",
+                "data": {
+                    "evaluation": "原始评价",
+                    "job_match_score": 61,
+                    "skills": ["Python"],
+                },
+            },
+        },
+    )
+
+    response = client.post(
+        f"/api/admin/candidates/{candidate_id}/resume/evaluation",
+        json={"evaluation": "人工修订后的简历评价", "job_match_score": "88"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile"]["evaluation_llm"] == "人工修订后的简历评价"
+    assert body["profile"]["evaluation_source"] == "manual"
+    assert body["profile"]["evaluation_source_label"] == "手工修改"
+    assert body["profile"]["job_match_score"] == 88
+    assert body["resume_parsed"]["details"]["data"]["skills"] == ["Python"]
+    stored = get_candidate(candidate_id)
+    data = stored["resume_parsed"]["details"]["data"]
+    assert data["evaluation"] == "人工修订后的简历评价"
+    assert data["evaluation_source"] == "manual"
+    assert data["evaluation_updated_at"]
+    assert data["job_match_score"] == 88
+
+    invalid_response = client.post(
+        f"/api/admin/candidates/{candidate_id}/resume/evaluation",
+        json={"evaluation": "无效匹配度", "job_match_score": 101},
+    )
+    assert invalid_response.status_code == 400
+
+
 def _seed_exam_with_metadata(quiz_key: str) -> int:
     spec = {
         "id": quiz_key,

@@ -67,6 +67,7 @@ candidateResumeReparsePollTimer: null,
 candidateResumeReparsePollIntervalMs: 1500,
 candidatesFilterTimer: null,
 candidateEvaluation: "",
+candidateResumeEvaluationForm: { evaluation: "", job_match_score: "", saving: false, editing: false, scoreEditing: false },
 assignmentForm: {
   quiz_key: "",
   quiz_keys: [],

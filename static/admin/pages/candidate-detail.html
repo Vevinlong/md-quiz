@@ -271,16 +271,88 @@
                 <button @click="saveCandidateEvaluation" type="button" class="mt-4 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">保存评价</button>
               </div>
 
-              <div x-show="candidateResumeSummary()" class="admin-surface rounded-3xl border border-white/70 bg-white/82 p-5 shadow-[var(--admin-shadow)] backdrop-blur-xl">
+              <div class="admin-surface rounded-3xl border border-white/70 bg-white/82 p-5 shadow-[var(--admin-shadow)] backdrop-blur-xl">
                 <div class="flex flex-wrap items-start justify-between gap-2">
                   <h2 class="text-xl font-semibold tracking-[-0.03em] text-slate-900">简历评价</h2>
-                  <span
-                    x-show="candidateResumeJobMatchScoreText()"
-                    class="rounded-full border border-blue-100 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold leading-5 text-blue-700"
-                    x-text="'简历匹配度 ' + candidateResumeJobMatchScoreText() + '%'"
-                  ></span>
+                  <div class="flex flex-wrap items-center justify-end gap-2">
+                    <span
+                      x-show="candidateResumeEvaluationSourceLabel()"
+                      :class="candidateResumeEvaluationSourceClass()"
+                      x-text="candidateResumeEvaluationSourceLabel()"
+                    ></span>
+                    <button
+                      x-show="!candidateResumeEvaluationForm.scoreEditing"
+                      @click="beginCandidateResumeScoreEdit"
+                      type="button"
+                      class="rounded-full border border-blue-100 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold leading-5 text-blue-700 transition"
+                      x-text="candidateResumeJobMatchScoreText() ? ('简历匹配度 ' + candidateResumeJobMatchScoreText() + '%') : '设置匹配度'"
+                    ></button>
+                    <div
+                      x-show="candidateResumeEvaluationForm.scoreEditing"
+                      class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold leading-5 text-blue-700"
+                    >
+                      <span>简历匹配度</span>
+                      <input
+                        x-ref="candidateResumeScoreInput"
+                        x-model="candidateResumeEvaluationForm.job_match_score"
+                        @keydown.enter.prevent="saveCandidateResumeScore"
+                        @keydown.escape.prevent="cancelCandidateResumeScoreEdit"
+                        @blur="saveCandidateResumeScore"
+                        type="text"
+                        inputmode="numeric"
+                        class="ml-1 w-10 bg-transparent text-center text-xs font-semibold text-blue-700 outline-none"
+                        placeholder="0-100"
+                      />
+                      <span>%</span>
+                    </div>
+                    <button
+                      x-show="!candidateResumeEvaluationForm.editing"
+                      @click="beginCandidateResumeEvaluationEdit"
+                      type="button"
+                      class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold leading-5 text-slate-700 transition hover:bg-slate-50"
+                    >
+                      编辑评价
+                    </button>
+                  </div>
                 </div>
-                <p class="mt-4 whitespace-pre-line text-sm leading-6 text-slate-700" x-text="candidateResumeSummary()"></p>
+                <div x-show="!candidateResumeEvaluationForm.editing" class="mt-4">
+                  <p
+                    x-show="candidateResumeSummary()"
+                    class="whitespace-pre-line text-sm leading-6 text-slate-700"
+                    x-text="candidateResumeSummary()"
+                  ></p>
+                  <div
+                    x-show="!candidateResumeSummary()"
+                    class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-6 text-slate-500"
+                  >
+                    暂无简历评价。
+                  </div>
+                </div>
+                <label x-show="candidateResumeEvaluationForm.editing" class="mt-4 block">
+                  <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">评价内容</span>
+                  <textarea
+                    x-model="candidateResumeEvaluationForm.evaluation"
+                    class="mt-2 h-44 w-full rounded-lg border border-blue-100 bg-white px-4 py-4 text-sm leading-7 text-slate-700 outline-none focus:border-blue-300"
+                    placeholder="记录或修订简历评价"
+                  ></textarea>
+                </label>
+                <div x-show="candidateResumeEvaluationForm.editing" class="mt-4 flex flex-wrap gap-2">
+                  <button
+                    @click="saveCandidateResumeEvaluation"
+                    type="button"
+                    :disabled="candidateResumeEvaluationForm.saving"
+                    class="rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    x-text="candidateResumeEvaluationForm.saving ? '保存中...' : '保存简历评价'"
+                  ></button>
+                  <button
+                    @click="cancelCandidateResumeEvaluationEdit"
+                    type="button"
+                    :disabled="candidateResumeEvaluationForm.saving"
+                    class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
 
               <div class="admin-surface rounded-2xl border border-white/70 bg-white/82 p-4 shadow-[var(--admin-shadow)] backdrop-blur-xl">

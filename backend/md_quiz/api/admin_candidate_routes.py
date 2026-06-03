@@ -355,6 +355,60 @@ def update_candidate_evaluation(candidate_id: int, payload: shared.CandidateEval
     return shared._serialize_candidate_detail(candidate_id, shared.deps.get_candidate(candidate_id) or candidate)
 
 
+def _normalize_resume_job_match_score(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, bool):
+        raise shared.HTTPException(status_code=400, detail="匹配度必须是 0-100 的整数")
+    if isinstance(value, float) and not value.is_integer():
+        raise shared.HTTPException(status_code=400, detail="匹配度必须是 0-100 的整数")
+    try:
+        score = int(value)
+    except Exception as exc:
+        raise shared.HTTPException(status_code=400, detail="匹配度必须是 0-100 的整数") from exc
+    if score < 0 or score > 100:
+        raise shared.HTTPException(status_code=400, detail="匹配度必须是 0-100 的整数")
+    return score
+
+
+@router.post("/candidates/{candidate_id}/resume/evaluation")
+def update_candidate_resume_evaluation(
+    candidate_id: int,
+    payload: shared.CandidateResumeEvaluationPayload,
+    request: Request,
+):
+    shared._require_admin(request)
+    candidate = shared.deps.get_candidate(candidate_id)
+    if not candidate:
+        raise shared.HTTPException(status_code=404, detail="候选人不存在")
+
+    parsed = candidate.get("resume_parsed") or {}
+    if not isinstance(parsed, dict):
+        parsed = {}
+    details = parsed.get("details") or {}
+    if not isinstance(details, dict):
+        details = {}
+    details_data = details.get("data") or {}
+    if not isinstance(details_data, dict):
+        details_data = {}
+
+    details_data["evaluation"] = str(payload.evaluation or "").strip()
+    details_data["job_match_score"] = _normalize_resume_job_match_score(payload.job_match_score)
+    details_data["evaluation_source"] = "manual"
+    details_data["evaluation_updated_at"] = datetime.now(timezone.utc).isoformat()
+    details["data"] = details_data
+    parsed["details"] = details
+
+    shared.deps.update_candidate_resume_parsed(
+        candidate_id,
+        resume_parsed=parsed,
+        touch_resume_parsed_at=False,
+    )
+    return shared._serialize_candidate_detail(candidate_id, shared.deps.get_candidate(candidate_id) or candidate)
+
+
 @router.get("/candidates/{candidate_id}/resume")
 def download_candidate_resume(candidate_id: int, request: Request):
     shared._require_admin(request)

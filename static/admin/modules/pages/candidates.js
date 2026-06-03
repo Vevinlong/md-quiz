@@ -180,6 +180,128 @@ export function createAdminCandidatesModule() {
       return score === null ? "" : String(score);
     },
 
+    syncCandidateResumeEvaluationForm() {
+      this.candidateResumeEvaluationForm = {
+        evaluation: this.candidateResumeSummary(),
+        job_match_score: this.candidateResumeJobMatchScoreText(),
+        saving: false,
+        editing: false,
+        scoreEditing: false,
+      };
+    },
+
+    candidateResumeEvaluationSourceLabel() {
+      const label = String(this.candidateDetail?.profile?.evaluation_source_label || "").trim();
+      if (label) return label;
+      return this.candidateResumeSummary() ? "系统生成" : "";
+    },
+
+    candidateResumeEvaluationSourceClass() {
+      const source = String(this.candidateDetail?.profile?.evaluation_source || "").trim();
+      const classes = [
+        "rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-5",
+      ];
+      if (source === "manual") {
+        classes.push("border-amber-200 bg-amber-50 text-amber-700");
+      } else {
+        classes.push("border-slate-200 bg-slate-50 text-slate-600");
+      }
+      return classes.join(" ");
+    },
+
+    normalizeCandidateResumeJobMatchScoreInput() {
+      const raw = String(this.candidateResumeEvaluationForm?.job_match_score ?? "").trim();
+      if (!raw) return null;
+      if (!/^\d+$/.test(raw)) {
+        throw new Error("匹配度必须是 0-100 的整数");
+      }
+      const score = Number(raw);
+      if (!Number.isFinite(score) || score < 0 || score > 100) {
+        throw new Error("匹配度必须是 0-100 的整数");
+      }
+      return Math.round(score);
+    },
+
+    async saveCandidateResumeEvaluation() {
+      const candidateId = Number(this.candidateDetail?.candidate?.id || 0);
+      if (!candidateId || this.candidateResumeEvaluationForm?.saving) return;
+      let jobMatchScore = null;
+      try {
+        jobMatchScore = this.normalizeCandidateResumeJobMatchScoreInput();
+      } catch (error) {
+        this.showNotice(error.message || "匹配度格式不正确");
+        return;
+      }
+      this.candidateResumeEvaluationForm = {
+        ...this.candidateResumeEvaluationForm,
+        saving: true,
+      };
+      try {
+        this.candidateDetail = await this.api(`/api/admin/candidates/${candidateId}/resume/evaluation`, {
+          method: "POST",
+          body: JSON.stringify({
+            evaluation: String(this.candidateResumeEvaluationForm?.evaluation || ""),
+            job_match_score: jobMatchScore,
+          }),
+          headers: { "Content-Type": "application/json" },
+        });
+        this.syncCandidateResumeEvaluationForm();
+        this.showNotice("简历评价已保存");
+      } finally {
+        this.candidateResumeEvaluationForm = {
+          ...this.candidateResumeEvaluationForm,
+          saving: false,
+        };
+      }
+    },
+
+    beginCandidateResumeEvaluationEdit() {
+      if (this.candidateResumeEvaluationForm?.saving) return;
+      this.candidateResumeEvaluationForm = {
+        ...this.candidateResumeEvaluationForm,
+        evaluation: this.candidateResumeSummary(),
+        editing: true,
+      };
+    },
+
+    cancelCandidateResumeEvaluationEdit() {
+      if (this.candidateResumeEvaluationForm?.saving) return;
+      this.candidateResumeEvaluationForm = {
+        ...this.candidateResumeEvaluationForm,
+        evaluation: this.candidateResumeSummary(),
+        editing: false,
+      };
+    },
+
+    beginCandidateResumeScoreEdit() {
+      if (this.candidateResumeEvaluationForm?.saving) return;
+      this.candidateResumeEvaluationForm = {
+        ...this.candidateResumeEvaluationForm,
+        job_match_score: this.candidateResumeJobMatchScoreText(),
+        scoreEditing: true,
+      };
+      this.$nextTick(() => {
+        const input = this.$refs?.candidateResumeScoreInput;
+        if (!input) return;
+        input.focus();
+        input.select();
+      });
+    },
+
+    cancelCandidateResumeScoreEdit() {
+      if (this.candidateResumeEvaluationForm?.saving) return;
+      this.candidateResumeEvaluationForm = {
+        ...this.candidateResumeEvaluationForm,
+        job_match_score: this.candidateResumeJobMatchScoreText(),
+        scoreEditing: false,
+      };
+    },
+
+    async saveCandidateResumeScore() {
+      if (!this.candidateResumeEvaluationForm?.scoreEditing || this.candidateResumeEvaluationForm?.saving) return;
+      await this.saveCandidateResumeEvaluation();
+    },
+
     candidateResumeError() {
       return String(this.candidateDetail?.profile?.details_error || this.candidateDetail?.resume_parsed?.details?.error || "").trim();
     },
@@ -755,6 +877,7 @@ export function createAdminCandidatesModule() {
       this.candidateDetail = await this.api(`/api/admin/candidates/${candidateId}`);
       this.candidateJobDescriptionAddSelection = [];
       this.candidateEvaluation = "";
+      this.syncCandidateResumeEvaluationForm();
       if (!this.candidateResumeReparseState.busy) {
         this.resetCandidateResumeReparseState();
       }

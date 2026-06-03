@@ -170,11 +170,35 @@ def test_admin_candidate_detail_places_resume_summary_in_action_column() -> None
     js_source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
 
     actions_index = html_source.index('adminCompactPanelVisible(\'candidate-detail\', \'actions\')')
-    resume_summary_index = html_source.index('<div x-show="candidateResumeSummary()" class="admin-surface')
+    resume_summary_index = html_source.index("saveCandidateResumeEvaluation")
 
     assert actions_index < resume_summary_index
     assert "candidateResumeMainHasStructuredContent()" in html_source
     assert "candidateResumeMainHasStructuredContent()" in js_source
+
+
+def test_admin_candidate_detail_allows_resume_evaluation_editing() -> None:
+    html_source = (ROOT / "static" / "admin" / "pages" / "candidate-detail.html").read_text(encoding="utf-8")
+    js_source = (ROOT / "static" / "admin" / "modules" / "pages" / "candidates.js").read_text(encoding="utf-8")
+    state_source = (ROOT / "static" / "admin" / "modules" / "state.js").read_text(encoding="utf-8")
+
+    assert "candidateResumeEvaluationForm.evaluation" in html_source
+    assert "candidateResumeEvaluationForm.job_match_score" in html_source
+    assert "candidateResumeEvaluationSourceLabel" in html_source
+    assert "!candidateResumeEvaluationForm.editing" in html_source
+    assert "beginCandidateResumeEvaluationEdit" in html_source
+    assert "cancelCandidateResumeEvaluationEdit" in html_source
+    assert "beginCandidateResumeScoreEdit" in html_source
+    assert "saveCandidateResumeScore" in html_source
+    assert "saveCandidateResumeEvaluation" in html_source
+    assert "/resume/evaluation" in js_source
+    assert "syncCandidateResumeEvaluationForm" in js_source
+    assert "beginCandidateResumeEvaluationEdit" in js_source
+    assert "cancelCandidateResumeEvaluationEdit" in js_source
+    assert "candidateResumeEvaluationSourceClass" in js_source
+    assert "normalizeCandidateResumeJobMatchScoreInput" in js_source
+    assert "editing: false" in js_source
+    assert "candidateResumeEvaluationForm" in state_source
 
 
 def test_admin_quiz_analytics_route_and_nav_exist() -> None:

@@ -76,6 +76,11 @@ class CandidateEvaluationPayload(BaseModel):
     evaluation: str
 
 
+class CandidateResumeEvaluationPayload(BaseModel):
+    evaluation: str = ""
+    job_match_score: Any = None
+
+
 class CandidateJobDescriptionAddPayload(BaseModel):
     job_description_ids: list[int] = Field(default_factory=list)
 
@@ -900,6 +905,11 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
     evaluation_llm = str(details_data.get("evaluation") or "").strip() or str(
         details_data.get("summary") or ""
     ).strip()
+    evaluation_source = str(details_data.get("evaluation_source") or "").strip().lower()
+    if evaluation_source != "manual":
+        evaluation_source = "system" if evaluation_llm else ""
+    evaluation_source_label = {"manual": "手工修改", "system": "系统生成"}.get(evaluation_source, "")
+    evaluation_updated_at = _iso_or_empty(details_data.get("evaluation_updated_at"))
     job_match_score = _coerce_int_or_none(details_data.get("job_match_score"))
     if job_match_score is not None:
         job_match_score = max(0, min(100, job_match_score))
@@ -984,6 +994,10 @@ def _serialize_candidate_detail(candidate_id: int, candidate: dict[str, Any]) ->
             "projects_raw": projects_raw,
             "projects_raw_blocks": project_blocks,
             "evaluation_llm": evaluation_llm,
+            "evaluation_source": evaluation_source,
+            "evaluation_source_label": evaluation_source_label,
+            "evaluation_updated_at": evaluation_updated_at,
+            "evaluation_updated_at_display": _iso_to_local_display(evaluation_updated_at) if evaluation_updated_at else "",
             "job_match_score": job_match_score,
             "admin_evaluations": admin_evaluations,
             "details_status": str(details.get("status") or "").strip(),
