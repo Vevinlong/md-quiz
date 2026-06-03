@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
@@ -308,6 +309,25 @@ def test_admin_candidate_detail_can_update_resume_evaluation(monkeypatch, tmp_pa
         json={"evaluation": "无效匹配度", "job_match_score": 101},
     )
     assert invalid_response.status_code == 400
+
+
+def test_admin_candidate_resume_download_supports_chinese_filename(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    _admin_login(client)
+    candidate_id = create_candidate("简历下载候选人", "13900001005")
+    filename = "张三-中文简历.pdf"
+    content = b"%PDF-1.4 resume-download"
+    _seed_candidate_resume(candidate_id, filename=filename, content=content)
+
+    response = client.get(f"/api/admin/candidates/{candidate_id}/resume")
+
+    assert response.status_code == 200
+    assert response.content == content
+    assert response.headers["content-type"] == "application/pdf"
+    disposition = response.headers["content-disposition"]
+    assert 'filename="' in disposition
+    assert f"filename*=UTF-8''{quote(filename, safe='')}" in disposition
+    disposition.encode("latin-1")
 
 
 def _seed_exam_with_metadata(quiz_key: str) -> int:

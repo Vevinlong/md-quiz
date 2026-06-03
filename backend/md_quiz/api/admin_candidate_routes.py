@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
 
@@ -84,6 +85,18 @@ def _candidate_attempt_summaries(item: dict[str, Any]) -> list[dict[str, Any]]:
         if summary:
             summaries.append(summary)
     return summaries
+
+
+def _resume_download_content_disposition(raw_filename: Any, candidate_id: int) -> str:
+    filename = os.path.basename(str(raw_filename or "").replace("\\", "/").strip())
+    filename = "".join(ch for ch in filename if ch >= " " and ch != "\x7f")
+    if not filename:
+        filename = f"candidate_{candidate_id}_resume.bin"
+
+    fallback = "".join(ch if 32 <= ord(ch) <= 126 and ch not in {'"', "\\", ";"} else "_" for ch in filename)
+    fallback = fallback.strip(" .") or f"candidate_{candidate_id}_resume.bin"
+    encoded = quote(filename, safe="")
+    return f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{encoded}'
 
 
 def _serialize_candidate_list_item(item: dict[str, Any]) -> dict[str, Any]:
@@ -421,9 +434,13 @@ def download_candidate_resume(candidate_id: int, request: Request):
     data = resume.get("resume_bytes") or b""
     if not isinstance(data, (bytes, bytearray)) or not data:
         raise shared.HTTPException(status_code=404, detail="简历不存在")
-    filename = os.path.basename(str(resume.get("resume_filename") or "").strip()) or f"candidate_{candidate_id}_resume.bin"
     mime = str(resume.get("resume_mime") or "").strip() or "application/octet-stream"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    headers = {
+        "Content-Disposition": _resume_download_content_disposition(
+            resume.get("resume_filename"),
+            candidate_id,
+        )
+    }
     return Response(content=bytes(data), media_type=mime, headers=headers)
 
 
