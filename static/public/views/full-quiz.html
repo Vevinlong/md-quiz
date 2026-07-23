@@ -4,7 +4,7 @@
     <div class="px-3 py-4">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div class="mb-4">
-          <div class="mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label"></div>
+          <div class="mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label + '（' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></div>
           <div class="grid grid-cols-5 gap-1.5">
             <template x-for="(q, idx) in group.questions" :key="q.qid">
               <a
