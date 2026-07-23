@@ -1,6 +1,12 @@
 <style>
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  /* dark scrollbar for question content (horizontal overflow) */
+  .quiz-rich::-webkit-scrollbar { height: 6px; }
+  .quiz-rich::-webkit-scrollbar-track { background: transparent; }
+  .quiz-rich::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  .quiz-rich::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  .quiz-rich { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
 </style>
 <section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]">
   <!-- ── Left: question index sidebar + status ── -->
@@ -65,7 +71,7 @@
                 </div>
 
                 <!-- stem -->
-                <div class="quiz-rich public-rich min-w-0 text-sm leading-7 text-slate-100/92 [&_p]:m-0 [&_p]:leading-7" x-html="question.stem_html || ''"></div>
+                <div class="quiz-rich public-rich min-w-0 overflow-x-auto text-sm leading-7 text-slate-100/92 [&_p]:m-0 [&_p]:leading-7" x-html="question.stem_html || ''"></div>
 
                 <!-- single options -->
                 <div class="mt-5 space-y-2.5" x-show="question.type === 'single'">
@@ -84,7 +90,7 @@
                       >
                         <span class="block leading-none" x-text="option.key"></span>
                       </span>
-                      <div class="quiz-rich public-rich min-w-0 flex-1 text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
+                      <div class="quiz-rich public-rich min-w-0 flex-1 overflow-x-auto text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
                     </button>
                   </template>
                 </div>
@@ -106,7 +112,7 @@
                       >
                         <span class="block leading-none" x-text="option.key"></span>
                       </span>
-                      <div class="quiz-rich public-rich min-w-0 flex-1 text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
+                      <div class="quiz-rich public-rich min-w-0 flex-1 overflow-x-auto text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
                     </button>
                   </template>
                 </div>
