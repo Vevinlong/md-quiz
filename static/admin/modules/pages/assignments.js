@@ -907,6 +907,8 @@ export function createAdminAssignmentsModule() {
     scheduleAssignmentsPolling() {
       if (this.assignmentsPollTimer || !this.session.authenticated) return;
       if (!["assignments", "attempt-detail"].includes(this.route.name)) return;
+      // 答题详情页：已完成状态无需轮询（状态不会再自动变化），避免 LaTeX 反复渲染闪烁
+      if (this.route.name === "attempt-detail" && this.isAttemptFinished()) return;
       this.assignmentsPollTimer = window.setTimeout(async () => {
         this.assignmentsPollTimer = null;
         if (!this.session.authenticated) return;
@@ -1030,8 +1032,102 @@ export function createAdminAssignmentsModule() {
       if (this.route.name === "attempt-detail") {
         this.scheduleAssignmentsPolling();
       }
+      // 只在手动加载时初始化覆盖值，轮询刷新时保留用户未保存的编辑
+      if (source !== "assignments-poll") {
+        this.initGradingOverrides();
+      }
       await this.$nextTick();
       this.queueMathTypeset();
+    },
+
+    // ---- 人工评分覆盖 ----
+    isAttemptFinished() {
+      return this.assignmentStatusValue(this.attemptDetail?.quiz_paper) === "finished";
+    },
+
+    isAttemptHandled() {
+      return Boolean(String(this.attemptDetail?.quiz_paper?.handled_at || "").trim());
+    },
+
+    canEditGrading() {
+      return this.isAttemptFinished() && !this.isAttemptHandled();
+    },
+
+    initGradingOverrides() {
+      const overrides = {};
+      const answers = this.attemptReviewAnswers();
+      answers.forEach((question) => {
+        const qid = String(question?.qid || "").trim();
+        if (!qid || question?.review_kind === "traits") return;
+        overrides[qid] = {
+          score: question?.score ?? "",
+          reason: question?.manual_override?.reason || "",
+        };
+      });
+      this.gradingOverrides = overrides;
+    },
+
+    updateGradingScore(qid, value) {
+      if (!this.gradingOverrides?.[qid]) {
+        this.gradingOverrides = { ...(this.gradingOverrides || {}), [qid]: { score: "", reason: "" } };
+      }
+      const entry = this.gradingOverrides[qid];
+      const num = value === "" || value === null || value === undefined ? "" : Number(value);
+      entry.score = isNaN(num) ? entry.score : num;
+    },
+
+    updateGradingReason(qid, value) {
+      if (!this.gradingOverrides?.[qid]) {
+        this.gradingOverrides = { ...(this.gradingOverrides || {}), [qid]: { score: "", reason: "" } };
+      }
+      const entry = this.gradingOverrides[qid];
+      entry.reason = String(value || "");
+    },
+
+    async saveGradingOverride(qid) {
+      const token = String(this.attemptDetail?.quiz_paper?.token || "").trim();
+      if (!token || !qid) return;
+      const currentOverride = this.gradingOverrides?.[qid];
+      if (!currentOverride) return;
+      this.gradingSavingQid = qid;
+      try {
+        const data = await this.api(
+          `/api/admin/assignments/${encodeURIComponent(token)}/grading/override`,
+          {
+            quiet: true,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              overrides: {
+                [qid]: {
+                  score: Number(currentOverride.score),
+                  reason: String(currentOverride.reason || "").trim() || null,
+                },
+              },
+            }),
+          },
+        );
+        if (data?.review) {
+          this.attemptDetail = {
+            ...(this.attemptDetail || {}),
+            review: data.review,
+          };
+          const updatedQuestion = (data.review.answers || []).find(
+            (a) => a.qid === qid,
+          );
+          if (updatedQuestion) {
+            this.gradingOverrides[qid] = {
+              score: updatedQuestion?.score ?? "",
+              reason: updatedQuestion?.manual_override?.reason || "",
+            };
+          }
+          this.showNotice(`${qid} 评分已保存`);
+        }
+      } catch (_error) {
+        this.showNotice(`${qid} 保存失败，请重试`);
+      } finally {
+        this.gradingSavingQid = null;
+      }
     },
 
   };
