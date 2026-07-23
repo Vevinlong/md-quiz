@@ -1,9 +1,28 @@
 export function createPublicFullQuizModule() {
+  // ── group definitions ──
+  const QUESTION_GROUPS = [
+    { label: "选择题", types: ["single", "multiple"] },
+    { label: "简答题", types: ["short"] },
+    { label: "量表题", types: ["traits"] },
+  ];
+
   return {
     // ── question helpers ──
 
     allQuestions() {
       return this.state.quiz?.spec?.questions || [];
+    },
+
+    questionGroups() {
+      const all = this.allQuestions();
+      const groups = [];
+      for (const group of QUESTION_GROUPS) {
+        const qs = all.filter((q) => group.types.includes(String(q.type || "").trim()));
+        if (qs.length > 0) {
+          groups.push({ ...group, questions: qs });
+        }
+      }
+      return groups;
     },
 
     answeredQids() {
@@ -29,6 +48,11 @@ export function createPublicFullQuizModule() {
 
     questionStatus(qid) {
       return this.answeredQids().has(String(qid || "")) ? "answered" : "unanswered";
+    },
+
+    groupAnsweredCount(group) {
+      const answered = this.answeredQids();
+      return (group.questions || []).filter((q) => answered.has(String(q.qid || ""))).length;
     },
 
     currentQidFromHash() {
