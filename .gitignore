@@ -10,3 +10,5 @@ tmp/
 .codex
 To-Dos
 agentmem/
+# Windows NTFS zone identifier artifacts
+*:Zone.Identifier
