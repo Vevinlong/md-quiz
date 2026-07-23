@@ -249,6 +249,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         attrs = _parse_attrs(m.group("attrs"))
         scoring_mode = str(attrs.get("scoring") or "").strip().lower()
         is_trait_single = qtype == "single" and scoring_mode == "traits"
+        is_completion = scoring_mode == "completion"
         partial = bool(attrs.get("partial", False))
         media = attrs.get("media", "")
         max_points = int(attrs.get("max", points if points else 0) or 0)
@@ -351,9 +352,15 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
                         f"{qid} trait single must not use correct option (*)",
                         line=line_no(i),
                     )
+            elif is_completion:
+                if correct_keys:
+                    raise QmlParseError(
+                        f"{qid} completion must not use correct option (*)",
+                        line=line_no(i),
+                    )
             elif not correct_keys:
                 raise QmlParseError(f"{qid} has no correct option (*)", line=line_no(i))
-            if not is_trait_single and qtype == "single" and len(correct_keys) != 1:
+            if not is_trait_single and not is_completion and qtype == "single" and len(correct_keys) != 1:
                 raise QmlParseError(
                     f"{qid} single must have exactly 1 correct option",
                     line=line_no(i),
@@ -367,6 +374,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "qid": qid,
             "label": label,
             "type": qtype,
+            "scoring": scoring_mode,
             "points": points if qtype != "short" else max_points,
             "max_points": max_points if qtype == "short" else points,
             "partial": partial,
