@@ -1,4 +1,5 @@
 import { createPublicApiModule } from "./modules/api.js";
+import { createPublicFullQuizModule } from "./modules/pages/full-quiz.js";
 import { createPublicQuizModule } from "./modules/quiz.js";
 import { createPublicResumeModule } from "./modules/resume.js";
 import { createPublicRouterModule } from "./modules/router.js";
@@ -16,6 +17,7 @@ const register = () => {
     ...createPublicVerifyModule(),
     ...createPublicResumeModule(),
     ...createPublicQuizModule(),
+    ...createPublicFullQuizModule(),
   }));
 };
 

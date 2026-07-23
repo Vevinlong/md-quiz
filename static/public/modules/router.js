@@ -218,7 +218,12 @@ export function createPublicRouterModule() {
           } else if (this.state.step === "resume") {
             this.viewCard = "resume";
           } else if (this.state.step === "quiz") {
-            this.viewCard = this.state.quiz?.entered_at ? "question" : "start";
+            if (this.state.quiz?.entered_at) {
+              const examMode = String(this.state.quiz?.exam_mode || "").trim().toLowerCase();
+              this.viewCard = examMode === "review" ? "full-quiz" : "question";
+            } else {
+              this.viewCard = "start";
+            }
           } else if (this.state.step === "done") {
             this.viewCard = "done";
           } else {
