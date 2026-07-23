@@ -200,8 +200,8 @@ export function createPublicFullQuizModule() {
 
     startTotalTimer() {
       this.stopTotalTimer();
-      const remaining = this.state.quiz?.remaining_seconds;
-      if (!remaining || remaining <= 0) return;
+      const remaining = Number(this.state?.quiz?.remaining_seconds || 0);
+      if (remaining <= 0) return;
       this.totalRemainingSeconds = remaining;
       this.totalTimer = window.setInterval(() => {
         if (this.totalRemainingSeconds > 0) {
@@ -215,6 +215,18 @@ export function createPublicFullQuizModule() {
         window.clearInterval(this.totalTimer);
         this.totalTimer = null;
       }
+    },
+
+    timerDisplay() {
+      const s = Math.max(0, Number(this.totalRemainingSeconds || 0));
+      if (s <= 0 && !this.state?.quiz?.entered_at) return "--";
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return m + "分" + sec + "秒";
+    },
+
+    progressDisplay() {
+      return this.answeredCount() + "/" + this.totalQuestions();
     },
 
     // ── cleanup on view switch ──
