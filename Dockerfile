@@ -5,6 +5,9 @@ FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/static
 
+# 使用淘宝 npm 镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY static/package.json static/package-lock.json ./
 RUN npm ci
 
@@ -22,13 +25,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
+# 替换为阿里云 apt 源（Debian Bookworm）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
-RUN pip install --upgrade pip \
-    && pip install -r requirements.txt
+# 使用清华 pip 镜像源
+RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 COPY backend/ ./backend/
 COPY docs/ ./docs/
