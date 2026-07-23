@@ -1,8 +1,12 @@
+<style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+</style>
 <section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]">
   <!-- ── Left: question index sidebar + status ── -->
   <aside class="sticky top-0 flex h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 flex-col border-r border-white/10 bg-slate-900/80 backdrop-blur">
     <!-- navigation -->
-    <div class="flex-1 overflow-y-auto px-3 py-4">
+    <div class="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div class="mb-4">
           <div class="mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label + '（' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></div>
@@ -41,7 +45,7 @@
   </aside>
 
   <!-- ── Right: questions ── -->
-  <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+  <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 no-scrollbar">
     <div class="mx-auto max-w-3xl space-y-10">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div>
