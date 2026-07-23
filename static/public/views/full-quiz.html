@@ -1,6 +1,6 @@
 <section x-show="viewCard === 'full-quiz'" class="flex min-h-[calc(100dvh-64px)]">
   <!-- ── Left: question index sidebar ── -->
-  <aside class="sticky top-0 hidden h-[calc(100dvh-64px)] w-[180px] flex-shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/80 backdrop-blur sm:block">
+  <aside class="sticky top-0 hidden h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/80 backdrop-blur sm:block">
     <div class="px-3 py-4">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div class="mb-4">
@@ -9,7 +9,7 @@
             <template x-for="(q, idx) in group.questions" :key="q.qid">
               <a
                 :href="'#q-' + (q.qid || '')"
-                class="flex h-8 w-full items-center justify-center rounded-full border text-xs font-semibold transition"
+                class="flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition mx-auto"
                 :class="questionStatus(q.qid) === 'answered'
                   ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
                   : 'border-white/10 text-slate-400 hover:border-white/30 hover:text-slate-200'"
