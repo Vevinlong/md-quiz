@@ -2536,6 +2536,59 @@ SET
             )
 
 
+def update_quiz_archive_grading_overrides(
+    *,
+    token: str,
+    overrides: dict[str, dict[str, Any]],
+    admin_username: str = "admin",
+) -> dict[str, Any]:
+    """Merge manual grading overrides into the quiz_archive and return the updated archive dict.
+
+    `overrides` is a mapping of qid -> {score: int, reason: str | None}.
+    """
+    archive_row = get_quiz_archive_by_token(token)
+    if not archive_row:
+        raise FileNotFoundError(f"找不到答题归档: {token}")
+    archive_data = archive_row.get("archive") or {}
+    if not isinstance(archive_data, dict):
+        archive_data = {}
+    grading = archive_data.get("grading")
+    if not isinstance(grading, dict):
+        grading = {}
+        archive_data["grading"] = grading
+    manual = grading.get("manual_overrides")
+    if not isinstance(manual, dict):
+        manual = {}
+    for qid, override in (overrides or {}).items():
+        qid = str(qid or "").strip()
+        if not qid:
+            continue
+        if override is None:
+            manual.pop(qid, None)
+            continue
+        entry = dict(manual.get(qid) or {}) if isinstance(manual.get(qid), dict) else {}
+        if "score" in override:
+            entry["score"] = override["score"]
+        if "reason" in override:
+            entry["reason"] = str(override["reason"] or "").strip()
+        entry["updated_by"] = str(admin_username or "admin").strip()
+        from datetime import UTC, datetime
+        entry["updated_at"] = datetime.now(UTC).isoformat()
+        manual[qid] = entry
+    grading["manual_overrides"] = manual
+    grading["grading_source_modified"] = True
+    save_quiz_archive(
+        archive_name=str(archive_row.get("archive_name") or "").strip(),
+        token=token,
+        candidate_id=archive_row.get("candidate_id"),
+        quiz_key=str(archive_row.get("quiz_key") or "").strip(),
+        quiz_version_id=archive_row.get("quiz_version_id"),
+        phone=str(archive_row.get("phone") or "").strip(),
+        archive=archive_data,
+    )
+    return archive_data
+
+
 def get_quiz_archive_by_name(archive_name: str) -> dict[str, Any] | None:
     sql = """
 SELECT archive_name, token, candidate_id, quiz_key, quiz_version_id, phone, archive::text, created_at, updated_at

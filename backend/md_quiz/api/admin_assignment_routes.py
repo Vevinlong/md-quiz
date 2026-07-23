@@ -5,8 +5,13 @@ from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Query, Request, Response, status
+from pydantic import BaseModel, Field
 
 from . import admin as shared
+
+
+class GradingOverridePayload(BaseModel):
+    overrides: dict[str, dict[str, Any]] = Field(default_factory=dict, description="qid -> {score: int, reason: str | null}")
 
 router = APIRouter()
 
@@ -369,3 +374,46 @@ def get_attempt_status(request: Request, tokens: str = ""):
             }
         )
     return {"items": items}
+
+
+@router.post("/assignments/{token}/grading/override")
+def upsert_grading_overrides(token: str, payload: GradingOverridePayload, request: Request):
+    """Merge manual score overrides for one or more questions.
+
+    Body: {"overrides": {"q1": {"score": 8, "reason": "改判"}, "q2": null}}
+    Setting a qid to null removes that override.
+    """
+    shared._require_admin(request)
+    admin_username = str(request.session.get("admin_username") or "").strip() or "admin"
+    try:
+        from backend.md_quiz.storage.db import update_quiz_archive_grading_overrides
+        updated = update_quiz_archive_grading_overrides(
+            token=str(token or "").strip(),
+            overrides=payload.overrides or {},
+            admin_username=admin_username,
+        )
+    except FileNotFoundError as exc:
+        raise shared.HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise shared.HTTPException(status_code=500, detail=str(exc))
+
+    # Build updated review
+    try:
+        assignment = shared.deps.load_assignment(token)
+    except Exception:
+        assignment = {}
+    try:
+        from backend.md_quiz.storage.db import get_quiz_archive_by_token
+        archive_row = get_quiz_archive_by_token(token)
+        archive = (archive_row or {}).get("archive") if isinstance(archive_row, dict) else None
+    except Exception:
+        archive = None
+    review_answers = shared._build_review_answers(archive=archive, assignment=assignment)
+    review_evaluation = shared._build_review_evaluation(archive=archive, assignment=assignment, answers=review_answers)
+    return {
+        "ok": True,
+        "review": {
+            "answers": review_answers,
+            "evaluation": review_evaluation,
+        },
+    }
