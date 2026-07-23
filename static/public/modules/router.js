@@ -244,7 +244,11 @@ export function createPublicRouterModule() {
           }
 
           this.autosaveMessage = this.state.quiz?.entered_at ? this.deferredSaveText(question) : "";
-          this.syncQuestionTimer();
+          if (this.viewCard === "full-quiz") {
+            this.startTotalTimer();
+          } else {
+            this.syncQuestionTimer();
+          }
           await this.renderCurrentView();
           await this.$nextTick();
           if (this.state.step === "verify") {
