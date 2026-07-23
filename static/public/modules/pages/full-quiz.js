@@ -55,6 +55,20 @@ export function createPublicFullQuizModule() {
       return (group.questions || []).filter((q) => answered.has(String(q.qid || ""))).length;
     },
 
+    groupTotalPoints(group) {
+      return (group.questions || []).reduce((sum, q) => sum + Number(q.points || q.max_points || 0), 0);
+    },
+
+    groupSectionLabel(gi) {
+      const labels = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+      return labels[gi] || String(gi + 1);
+    },
+
+    questionTypeLabel(type) {
+      const map = { single: "单选", multiple: "多选", short: "简答", traits: "量表" };
+      return map[String(type || "").trim()] || type;
+    },
+
     currentQidFromHash() {
       const hash = location.hash.replace(/^#/, "");
       if (hash.startsWith("q-")) return hash.slice(2);
