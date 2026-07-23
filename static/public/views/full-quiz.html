@@ -1,4 +1,4 @@
-<section x-show="viewCard === 'full-quiz'" class="flex min-h-[calc(100dvh-64px)]">
+<section x-show="viewCard === 'full-quiz'" class="flex min-h-[calc(100dvh-64px)]" x-init="startTotalTimer()">
   <!-- ── Left: question index sidebar ── -->
   <aside class="sticky top-0 hidden h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/80 backdrop-blur sm:block">
     <div class="px-3 py-4">
@@ -105,18 +105,34 @@
         </div>
       </template>
 
-      <!-- ── submit button ── -->
-      <div class="flex justify-center pb-8">
-        <button
-          type="button"
-          @click="showConfirmSubmit()"
-          class="rounded-xl bg-emerald-500 px-10 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 hover:shadow-emerald-400/30"
-        >
-          📝 提交答卷
-        </button>
-      </div>
     </div>
   </div>
+
+  <!-- ── Right: status panel ── -->
+  <aside class="sticky top-0 hidden h-[calc(100dvh-64px)] w-[160px] flex-shrink-0 border-l border-white/10 bg-slate-900/80 backdrop-blur sm:flex sm:flex-col sm:items-center sm:justify-between sm:py-8">
+    <div class="flex flex-col items-center gap-6">
+      <!-- timer -->
+      <div class="flex flex-col items-center gap-1">
+        <span class="text-[11px] font-medium text-slate-500">剩余时间</span>
+        <span class="font-mono text-lg font-bold text-emerald-400" x-text="formatDuration(totalRemainingSeconds)"></span>
+      </div>
+
+      <!-- progress -->
+      <div class="flex flex-col items-center gap-1">
+        <span class="text-[11px] font-medium text-slate-500">答题进度</span>
+        <span class="text-lg font-bold text-slate-100" x-text="answeredCount() + '/' + totalQuestions()"></span>
+      </div>
+    </div>
+
+    <!-- submit -->
+    <button
+      type="button"
+      @click="showConfirmSubmit()"
+      class="rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+    >
+      交卷
+    </button>
+  </aside>
 </section>
 
 <!-- ── submit confirmation modal ── -->
