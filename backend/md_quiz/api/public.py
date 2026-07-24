@@ -267,6 +267,8 @@ def _build_verify_payload(assignment: dict[str, Any], *, verify: dict[str, Any],
     if mode == "direct_phone" and candidate_id > 0:
         candidate = deps.get_candidate(candidate_id) or {}
         masked_phone = _mask_phone(str(candidate.get("phone") or ""))
+    import os
+    sms_sender_name = (os.getenv("ALIYUN_PNVS_SIGN_NAME") or "").strip()
     return {
         "locked": bool(verify.get("locked")),
         "attempts": int(verify.get("attempts") or 0),
@@ -276,6 +278,7 @@ def _build_verify_payload(assignment: dict[str, Any], *, verify: dict[str, Any],
         "masked_phone": masked_phone,
         "name": str(pending_profile.get("name") or ""),
         "phone": str(sms.get("phone") or pending_profile.get("phone") or ""),
+        "sms_sender_name": sms_sender_name,
     }
 
 
