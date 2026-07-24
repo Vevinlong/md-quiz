@@ -218,7 +218,12 @@ export function createPublicRouterModule() {
           } else if (this.state.step === "resume") {
             this.viewCard = "resume";
           } else if (this.state.step === "quiz") {
-            this.viewCard = this.state.quiz?.entered_at ? "question" : "start";
+            if (this.state.quiz?.entered_at) {
+              const examMode = String(this.state.quiz?.exam_mode || "").trim().toLowerCase();
+              this.viewCard = examMode === "full" ? "full-quiz" : "question";
+            } else {
+              this.viewCard = "start";
+            }
           } else if (this.state.step === "done") {
             this.viewCard = "done";
           } else {
@@ -239,7 +244,11 @@ export function createPublicRouterModule() {
           }
 
           this.autosaveMessage = this.state.quiz?.entered_at ? this.deferredSaveText(question) : "";
-          this.syncQuestionTimer();
+          if (this.viewCard === "full-quiz") {
+            this.startTotalTimer();
+          } else {
+            this.syncQuestionTimer();
+          }
           await this.renderCurrentView();
           await this.$nextTick();
           if (this.state.step === "verify") {

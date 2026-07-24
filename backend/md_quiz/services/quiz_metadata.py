@@ -122,6 +122,9 @@ def build_quiz_metadata(spec: dict[str, Any], *, default_schema_version: int | N
     answer_time_total_seconds = compute_answer_time_total_seconds(list(doc.get("questions") or []))
     estimated_duration_minutes = (answer_time_total_seconds + 59) // 60 if answer_time_total_seconds > 0 else 0
     trait = doc.get("trait") if isinstance(doc.get("trait"), dict) else {}
+    exam_mode = str(doc.get("exam_mode") or "").strip().lower()
+    if exam_mode not in ("full",):
+        exam_mode = "linear"
 
     return {
         "tags": normalize_quiz_tags(doc.get("tags")),
@@ -132,6 +135,7 @@ def build_quiz_metadata(spec: dict[str, Any], *, default_schema_version: int | N
         "estimated_duration_minutes": int(estimated_duration_minutes),
         "answer_time_total_seconds": int(answer_time_total_seconds),
         "trait": dict(trait),
+        "exam_mode": exam_mode,
     }
 
 
@@ -146,4 +150,5 @@ def apply_quiz_metadata(spec: dict[str, Any], *, default_schema_version: int | N
     out["estimated_duration_minutes"] = metadata["estimated_duration_minutes"]
     out["answer_time_total_seconds"] = metadata["answer_time_total_seconds"]
     out["trait"] = metadata["trait"]
+    out["exam_mode"] = metadata["exam_mode"]
     return out

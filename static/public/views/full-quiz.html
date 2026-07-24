@@ -1,0 +1,180 @@
+<style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  /* dark scrollbar for question content (horizontal overflow) */
+  .quiz-rich::-webkit-scrollbar { height: 6px; }
+  .quiz-rich::-webkit-scrollbar-track { background: transparent; }
+  .quiz-rich::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  .quiz-rich::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  .quiz-rich { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
+</style>
+<section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]">
+  <!-- ── Left: question index sidebar + status ── -->
+  <aside class="sticky top-0 flex h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 flex-col border-r border-white/10 bg-slate-900/80 backdrop-blur">
+    <!-- navigation -->
+    <div class="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
+      <template x-for="(group, gi) in questionGroups()" :key="group.label">
+        <div class="mb-4">
+          <div class="mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label + '（' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></div>
+          <div class="grid grid-cols-5 gap-1.5">
+            <template x-for="(q, idx) in group.questions" :key="q.qid">
+              <a
+                :href="'#q-' + (q.qid || '')"
+                class="flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition mx-auto"
+                :class="questionStatus(q.qid) === 'answered'
+                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                  : 'border-white/10 text-slate-400 hover:border-white/30 hover:text-slate-200'"
+                x-text="allQuestions().indexOf(q) + 1"
+              ></a>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- status bar -->
+    <div class="flex flex-col items-center gap-3 border-t border-white/10 px-3 py-4">
+      <div class="flex flex-col items-center gap-1">
+        <span class="text-[11px] font-medium text-slate-500">剩余时间</span>
+        <span class="font-mono text-base font-bold text-emerald-400" x-text="timerDisplay()"></span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <span class="text-[11px] font-medium text-slate-500">答题进度</span>
+        <span class="text-base font-bold text-slate-100" x-text="progressDisplay()"></span>
+      </div>
+      <button
+        type="button"
+        @click="showConfirmSubmit()"
+        class="mt-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
+      >交卷</button>
+    </div>
+  </aside>
+
+  <!-- ── Right: questions ── -->
+  <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 no-scrollbar">
+    <div class="mx-auto max-w-3xl space-y-10">
+      <template x-for="(group, gi) in questionGroups()" :key="group.label">
+        <div>
+          <!-- section header -->
+          <h2 class="mb-6 border-b border-white/10 pb-3 text-xl font-bold text-slate-100" x-text="groupSectionLabel(gi) + '、' + group.label + '（共' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></h2>
+
+          <!-- questions in this group -->
+          <div class="space-y-6">
+            <template x-for="(question, idx) in group.questions" :key="question.qid">
+              <article :id="'q-' + (question.qid || '')" class="rounded-xl border border-white/10 bg-slate-950/58 px-5 py-5 sm:px-6 sm:py-6">
+                <!-- question header -->
+                <div class="mb-1 flex flex-wrap items-center gap-2">
+                  <span class="text-sm font-bold text-slate-100/90" x-text="'Q' + (allQuestions().indexOf(question) + 1)"></span>
+                  <span class="rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400" x-text="questionTypeLabel(question.type)"></span>
+                  <span class="text-[11px] text-slate-500" x-text="'(' + (question.points || question.max_points || 0) + '分)'"></span>
+                  <span x-show="questionStatus(question.qid) === 'answered'" class="ml-auto text-xs text-emerald-400">已作答</span>
+                </div>
+
+                <!-- stem -->
+                <div class="quiz-rich public-rich min-w-0 overflow-x-auto text-sm leading-7 text-slate-100/92 [&_p]:m-0 [&_p]:leading-7" x-html="question.stem_html || ''"></div>
+
+                <!-- single options -->
+                <div class="mt-5 space-y-2.5" x-show="question.type === 'single'">
+                  <template x-for="option in question.options || []" :key="option.key">
+                    <button
+                      type="button"
+                      @click="selectSingleOption(question, option.key)"
+                      class="flex w-full items-center gap-3 rounded-lg border px-4 py-3.5 text-left text-sm transition"
+                      :class="isSingleSelected(question, option.key) ? 'border-emerald-300/50 bg-emerald-400/10 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
+                    >
+                      <span
+                        class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-[12px] leading-none font-semibold tracking-[0.08em]"
+                        :class="isSingleSelected(question, option.key)
+                          ? 'border-emerald-300/55 bg-emerald-300/18 text-emerald-100'
+                          : 'border-white/15 bg-white/5 text-slate-300'"
+                      >
+                        <span class="block leading-none" x-text="option.key"></span>
+                      </span>
+                      <div class="quiz-rich public-rich min-w-0 flex-1 overflow-x-auto text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
+                    </button>
+                  </template>
+                </div>
+
+                <!-- multiple options -->
+                <div class="mt-5 space-y-2.5" x-show="question.type === 'multiple'">
+                  <template x-for="option in question.options || []" :key="option.key">
+                    <button
+                      type="button"
+                      @click="toggleMultipleOption(question, option.key)"
+                      class="flex w-full items-center gap-3 rounded-lg border px-4 py-3.5 text-left text-sm transition"
+                      :class="isMultipleSelected(question, option.key) ? 'border-emerald-300/50 bg-emerald-400/10 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
+                    >
+                      <span
+                        class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-[12px] leading-none font-semibold tracking-[0.08em]"
+                        :class="isMultipleSelected(question, option.key)
+                          ? 'border-emerald-300/55 bg-emerald-300/18 text-emerald-100'
+                          : 'border-white/15 bg-white/5 text-slate-300'"
+                      >
+                        <span class="block leading-none" x-text="option.key"></span>
+                      </span>
+                      <div class="quiz-rich public-rich min-w-0 flex-1 overflow-x-auto text-sm leading-7 text-slate-200/92" x-html="option.text_html || ''"></div>
+                    </button>
+                  </template>
+                </div>
+
+                <!-- short answer -->
+                <div class="mt-5" x-show="question.type === 'short'">
+                  <textarea
+                    class="w-full resize-y rounded-lg border border-white/10 bg-white/6 px-4 py-3 text-sm leading-6 text-slate-100 placeholder-slate-500 transition focus:border-emerald-400/40 focus:ring-1 focus:ring-emerald-400/20 focus:outline-none"
+                    rows="4"
+                    :value="shortAnswerDraft(question.qid)"
+                    @input="if (!state.assignment.answers) state.assignment.answers = {}; state.assignment.answers[question.qid] = $event.target.value; debounceSaveShort(question)"
+                    placeholder="输入你的回答…"
+                  ></textarea>
+                </div>
+              </article>
+            </template>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </div>
+
+</section>
+
+<!-- ── submit confirmation modal ── -->
+<div
+  x-show="confirmSubmitVisible"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+  @click.self="hideConfirmSubmit()"
+>
+  <div class="mx-4 w-full max-w-md rounded-xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+    <h3 class="text-lg font-bold text-white">确认提交</h3>
+
+    <!-- unanswered warning -->
+    <div x-show="unansweredQuestions().length > 0" class="mt-4 rounded-lg bg-amber-500/10 border border-amber-500/30 px-4 py-3">
+      <p class="text-sm font-medium text-amber-300">您还有 <span x-text="unansweredQuestions().length"></span> 道题未作答：</p>
+      <ul class="mt-1.5 space-y-0.5">
+        <template x-for="q in unansweredQuestions()" :key="q.qid">
+          <li class="text-xs text-slate-300">
+            <a :href="'#q-' + (q.qid || '')" @click="hideConfirmSubmit()" class="text-amber-200 underline hover:text-amber-100"
+              x-text="'Q' + (allQuestions().indexOf(q) + 1) + '. ' + (q.stem_md || '').slice(0, 40)"></a>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    <p class="mt-4 text-sm text-slate-400">提交后将无法再修改答案。确认提交？</p>
+
+    <div class="mt-5 flex justify-end gap-3">
+      <button
+        type="button"
+        @click="hideConfirmSubmit()"
+        class="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/8"
+      >继续作答</button>
+      <button
+        type="button"
+        @click="confirmSubmit()"
+        :disabled="confirmSubmitLoading"
+        class="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
+        x-text="confirmSubmitLoading ? '提交中...' : '确认提交'"
+      ></button>
+    </div>
+  </div>
+</div>

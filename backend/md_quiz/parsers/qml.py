@@ -147,6 +147,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         raise QmlParseError(str(exc), line=1) from exc
 
     exam_id = str(front_matter.get("id") or f"exam-{uuid.uuid4().hex[:8]}")
+    exam_mode = str(front_matter.get("exam_mode") or "").strip().lower()
     exam: dict[str, Any] = {
         "id": exam_id,
         "title": front_matter.get("title", ""),
@@ -157,6 +158,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         "question_count": question_count,
         "question_counts": question_counts,
         "estimated_duration_minutes": estimated_duration_minutes,
+        "exam_mode": exam_mode,
         "welcome_image": front_matter.get("welcome_image", ""),
         "end_image": front_matter.get("end_image", ""),
         "llm": front_matter.get("llm", {}) or {},
@@ -176,6 +178,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "question_count",
             "question_counts",
             "estimated_duration_minutes",
+            "exam_mode",
             "welcome_image",
             "end_image",
             "trait",

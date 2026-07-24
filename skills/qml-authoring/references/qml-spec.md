@@ -40,6 +40,21 @@ estimated_duration_minutes: 34
   - `estimated_duration_minutes`
 - QML 语法层不定义 manifest、repo path、目录结构
 
+### exam_mode（可选，默认 linear）
+
+控制候选人答题时的试卷呈现与交互方式：
+
+| 值 | 模式 | 行为 |
+|----|------|------|
+| `linear` | 逐题模式（默认） | 每次显示一题，单题计时，超时自动推进，末题自动交卷 |
+| `full` | 全卷模式 | 一屏展示所有题目，左侧导航栏可跳转，不限制作答顺序，手动交卷 |
+
+不写该字段时默认为 `linear`，向后兼容已有题库。
+
+```yaml
+exam_mode: full
+```
+
 ### trait 元数据（可选）
 
 当问卷包含 `single + {scoring=traits}` 的量表题时，可在 Front Matter 中补充 `trait` 元数据。
