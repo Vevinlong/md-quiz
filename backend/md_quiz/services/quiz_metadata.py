@@ -123,7 +123,7 @@ def build_quiz_metadata(spec: dict[str, Any], *, default_schema_version: int | N
     estimated_duration_minutes = (answer_time_total_seconds + 59) // 60 if answer_time_total_seconds > 0 else 0
     trait = doc.get("trait") if isinstance(doc.get("trait"), dict) else {}
     exam_mode = str(doc.get("exam_mode") or "").strip().lower()
-    if exam_mode not in ("review",):
+    if exam_mode not in ("full",):
         exam_mode = "linear"
 
     return {

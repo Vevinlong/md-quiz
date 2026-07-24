@@ -220,7 +220,7 @@ export function createPublicRouterModule() {
           } else if (this.state.step === "quiz") {
             if (this.state.quiz?.entered_at) {
               const examMode = String(this.state.quiz?.exam_mode || "").trim().toLowerCase();
-              this.viewCard = examMode === "review" ? "full-quiz" : "question";
+              this.viewCard = examMode === "full" ? "full-quiz" : "question";
             } else {
               this.viewCard = "start";
             }

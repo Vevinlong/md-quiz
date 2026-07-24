@@ -189,8 +189,8 @@ def _sync_question_timeouts(token: str, assignment: dict[str, Any], questions: l
         return False
     if _assignment_ignore_timing(assignment):
         return False
-    # review 模式：单题超时由候选人自由控制，总时长兜底
-    if exam_mode == "review":
+    # full 模式：单题超时由候选人自由控制，总时长兜底
+    if exam_mode == "full":
         return False
     timing = assignment.get("timing") if isinstance(assignment.get("timing"), dict) else {}
     if not str((timing or {}).get("start_at") or "").strip():
@@ -316,7 +316,7 @@ def _build_quiz_payload(assignment: dict[str, Any], public_spec: dict[str, Any],
     current_index, current_question = _current_question(questions, flow)
     ignore_timing = _assignment_ignore_timing(assignment)
     exam_mode = str(quiz_metadata.get("exam_mode") or "").strip().lower()
-    is_review = exam_mode == "review"
+    is_full = exam_mode == "full"
     return {
         "quiz_key": str(assignment.get("quiz_key") or "").strip(),
         "title": str(public_spec.get("title") or "").strip(),
@@ -341,8 +341,8 @@ def _build_quiz_payload(assignment: dict[str, Any], public_spec: dict[str, Any],
             "current_index": int(flow.get("current_index") or 0),
             "current_started_at": str(flow.get("current_started_at") or ""),
             "current_question_id": str((current_question or {}).get("qid") or ""),
-            "current_question_seconds": 0 if (ignore_timing or is_review) else int((current_question or {}).get("answer_time_seconds") or 0),
-            "current_question_remaining_seconds": 0 if is_review else _current_question_remaining_seconds(
+            "current_question_seconds": 0 if (ignore_timing or is_full) else int((current_question or {}).get("answer_time_seconds") or 0),
+            "current_question_remaining_seconds": 0 if is_full else _current_question_remaining_seconds(
                 current_question,
                 flow,
                 ignore_timing=ignore_timing,
@@ -474,7 +474,7 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
             raise HTTPException(status_code=400, detail="请先开始答题")
 
         exam_mode = str(public_spec.get("exam_mode") or "").strip().lower()
-        is_review = exam_mode == "review"
+        is_full = exam_mode == "full"
 
         if _sync_question_timeouts(token, assignment, questions, now=now, exam_mode=exam_mode):
             should_reload = True
@@ -489,8 +489,8 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
 
         if should_reload:
             pass
-        elif is_review:
-            # ── review 模式：保存答案，不推进题号，不检查 question_locked ──
+        elif is_full:
+            # ── full 模式：保存答案，不推进题号，不检查 question_locked ──
             qid = str(action.question_id or "").strip()
             if qid:
                 normalized_answer = _normalize_answer_for_question(
