@@ -831,6 +831,11 @@ def public_resume_use_existing(payload: UseExistingResumePayload):
     return public_flow_service.use_existing_public_resume(token=payload.token)
 
 
+@router.post("/resume/skip")
+def public_resume_skip(payload: UseExistingResumePayload):
+    return public_flow_service.skip_public_resume(token=payload.token)
+
+
 @router.post("/answers/{token}")
 async def public_save_answer(token: str, request: Request):
     content_type = str(request.headers.get("content-type") or "").lower()

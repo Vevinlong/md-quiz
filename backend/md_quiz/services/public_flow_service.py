@@ -668,3 +668,73 @@ def use_existing_public_resume(*, token: str) -> dict[str, Any]:
         )
 
     return {"ok": True, "redirect": f"/quiz/{token}"}
+
+
+def skip_public_resume(*, token: str) -> dict[str, Any]:
+    """Skip resume upload and proceed directly to quiz. Creates a bare candidate record."""
+    token = str(token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="缺少 token")
+
+    with deps.assignment_locked(token):
+        assignment = deps.load_assignment(token)
+        if str(assignment.get("status") or "").strip() == "expired":
+            raise HTTPException(status_code=410, detail="当前链接已失效")
+        invite_state, _, _ = exam_helpers._invite_window_state(assignment)
+        if invite_state in {"not_started", "expired"}:
+            raise HTTPException(status_code=400, detail="当前不在可答题时间范围内")
+        sms = assignment.get("sms_verify") or {}
+        if not bool(sms.get("verified")):
+            raise HTTPException(status_code=400, detail="请先完成验证码验证")
+
+        try:
+            existing_candidate_id = int(assignment.get("candidate_id") or 0)
+        except Exception:
+            existing_candidate_id = 0
+        if existing_candidate_id > 0:
+            return {"ok": True, "redirect": f"/quiz/{token}"}
+
+        pending_profile = assignment.get("pending_profile") or {}
+        if not isinstance(pending_profile, dict):
+            pending_profile = {}
+        name = str(pending_profile.get("name") or "").strip()
+        phone = validation_helpers._normalize_phone(
+            str(pending_profile.get("phone") or sms.get("phone") or "").strip()
+        )
+
+    if not validation_helpers._is_valid_name(name) or not validation_helpers._is_valid_phone(phone):
+        raise HTTPException(status_code=400, detail="候选人信息不完整，请重新验证")
+
+    # Find or create candidate (no resume attached)
+    candidate = deps.get_candidate_by_phone(phone)
+    if candidate and int(candidate.get("id") or 0) > 0:
+        candidate_id = int(candidate.get("id") or 0)
+    else:
+        try:
+            candidate_id = int(deps.create_candidate(name=name, phone=phone))
+        except Exception:
+            candidate_retry = deps.get_candidate_by_phone(phone)
+            candidate_id = int((candidate_retry or {}).get("id") or 0)
+    if candidate_id <= 0:
+        raise HTTPException(status_code=500, detail="创建候选人失败，请稍后重试")
+
+    with deps.assignment_locked(token):
+        assignment = deps.load_assignment(token)
+        _finalize_assignment_candidate_binding(
+            token=token,
+            assignment=assignment,
+            candidate_id=candidate_id,
+            phone=phone,
+        )
+
+    try:
+        deps.log_event(
+            "assignment.resume_skip",
+            actor="candidate",
+            candidate_id=candidate_id,
+            token=token,
+        )
+    except Exception:
+        pass
+
+    return {"ok": True, "redirect": f"/quiz/{token}"}

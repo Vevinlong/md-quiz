@@ -58,6 +58,22 @@ export function createPublicResumeModule() {
       }
     },
 
+    async skipResume() {
+      if (this.actionBusy) return;
+      this.actionBusy = true;
+      try {
+        const result = await this.api("/api/public/resume/skip", {
+          method: "POST",
+          body: JSON.stringify({ token: this.route.token }),
+          headers: { "Content-Type": "application/json" },
+        });
+        history.replaceState({}, "", result.redirect);
+        await this.syncRoute(result.redirect);
+      } finally {
+        this.actionBusy = false;
+      }
+    },
+
     async uploadResume() {
       if (this.actionBusy) return;
       const file = this.$refs.resumeFile?.files?.[0];
