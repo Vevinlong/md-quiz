@@ -36,8 +36,8 @@ from backend.md_quiz.storage.db import list_quiz_definitions
 def _normalize_repo_url(repo_url: str) -> str:
     value = str(repo_url or "").strip()
     parsed = urlsplit(value)
-    if parsed.scheme != "https" or not parsed.netloc:
-        raise ExamRepoSyncError("只支持公共只读 HTTPS Git 仓库地址")
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        raise ExamRepoSyncError("只支持公共只读 HTTPS/HTTP Git 仓库地址")
     return value
 
 
