@@ -91,7 +91,10 @@ export function createAdminRouterModule() {
       if (path === "/admin/login") {
         return withMeta({ name: "login", path, title: "管理员登录", section: "Login", params: {} });
       }
-      if (path === "/admin" || path === "/admin/quizzes") {
+      if (path === "/admin") {
+        return withMeta({ name: "assignments", path: "/admin/assignments", title: "邀约与答题", section: "Assignments", params: {} });
+      }
+      if (path === "/admin/quizzes") {
         return withMeta({ name: "quizzes", path: "/admin/quizzes", title: "测验", section: "Quizzes", params: {} });
       }
       if (path === "/admin/quiz-analytics") {
@@ -148,7 +151,7 @@ export function createAdminRouterModule() {
       if (path === "/admin/mcp") {
         return withMeta({ name: "mcp", path, title: "MCP", section: "MCP", params: {} });
       }
-      return withMeta({ name: "quizzes", path: "/admin/quizzes", title: "测验", section: "Quizzes", params: {} });
+      return withMeta({ name: "assignments", path: "/admin/assignments", title: "邀约与答题", section: "Assignments", params: {} });
     },
 
     async refreshSession() {
@@ -156,11 +159,11 @@ export function createAdminRouterModule() {
       this.session = data || { authenticated: false, username: "" };
       // Rebuild navItems based on role
       const common = [
+        { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
         { href: "/admin/quizzes", label: "测验", icon: "library_books" },
         { href: "/admin/quiz-analytics", label: "测验分析", icon: "analytics" },
         { href: "/admin/job-descriptions", label: "职位管理", icon: "work" },
         { href: "/admin/candidates", label: "候选人", icon: "group" },
-        { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
       ];
       if (this.session.authenticated && this.session.role === "super_admin") {
         this.navItems = [
@@ -213,7 +216,7 @@ export function createAdminRouterModule() {
 
       let nextRoute = this.resolveRoute(pathname, search);
       if (this.session.authenticated && nextRoute.name === "login") {
-        nextRoute = this.resolveRoute("/admin/quizzes", "");
+        nextRoute = this.resolveRoute("/admin/assignments", "");
         replace = true;
       }
 
