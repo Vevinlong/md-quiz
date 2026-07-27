@@ -43,6 +43,7 @@ COPY static/public/ ./static/public/
 COPY static/assets/ ./static/assets/
 COPY static/vendor/ ./static/vendor/
 COPY static/logo.png ./static/logo.png
+COPY static/version.json ./static/version.json
 COPY --from=frontend-builder /app/static/admin.css ./static/admin.css
 COPY --from=frontend-builder /app/static/public.css ./static/public.css
 COPY --from=frontend-builder /app/static/assets/js/alpine.min.js ./static/assets/js/alpine.min.js

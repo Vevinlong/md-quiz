@@ -157,6 +157,7 @@ export function createAdminRouterModule() {
     async refreshSession() {
       const data = await this.api("/api/admin/session", { quiet: true });
       this.session = data || { authenticated: false, username: "" };
+      this.loadVersion().catch(() => {});
       // Rebuild navItems based on role
       const common = [
         { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
@@ -177,6 +178,15 @@ export function createAdminRouterModule() {
         this.navItems = common;
       }
       return this.session;
+    },
+
+    async loadVersion() {
+      try {
+        const v = await this.api("/api/admin/version", { quiet: true });
+        this.buildVersion = v?.version || "";
+      } catch (_e) {
+        this.buildVersion = "";
+      }
     },
 
     async loadBootstrap() {
