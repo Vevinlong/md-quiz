@@ -7,6 +7,7 @@ from pathlib import Path
 from backend.md_quiz.config import PROJECT_ROOT, load_runtime_defaults
 from backend.md_quiz.models import ProcessHeartbeat, RuntimeConfig
 from backend.md_quiz.storage import JobStore, ProcessStore, RuntimeConfigStore
+from backend.md_quiz.storage.db import ensure_super_admin
 from backend.md_quiz.services.support_deps import *
 
 _RUNTIME_JSON_MIGRATION_KEY = "runtime_json_store_migration"
@@ -167,6 +168,10 @@ def bootstrap_runtime() -> None:
         init_db()
     except RuntimeError as e:
         raise RuntimeBootstrapError(str(e)) from e
+    try:
+        ensure_super_admin(username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
+    except Exception:
+        logger.exception("Failed to ensure super admin")
     try:
         _migrate_runtime_json_state()
     except Exception:
