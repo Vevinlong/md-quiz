@@ -4,18 +4,20 @@ from fastapi import APIRouter, Depends, Request, status
 
 from . import admin as shared
 from .deps import get_container
+from backend.md_quiz.storage.db import get_admin_user_by_username, _check_admin_password
 
 router = APIRouter()
 
 
 @router.post("/session/login")
-def login(payload: shared.AdminLoginPayload, request: Request, container=Depends(get_container)):
-    settings = container.settings
-    if payload.username != settings.admin_username or payload.password != settings.admin_password:
+def login(payload: shared.AdminLoginPayload, request: Request):
+    user = get_admin_user_by_username(payload.username)
+    if not user or not _check_admin_password(payload.password, user["password_hash"]):
         raise shared.HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
     request.session["admin_logged_in"] = True
     request.session["admin_username"] = payload.username
-    return {"ok": True, "username": payload.username}
+    request.session["admin_role"] = user["role"]
+    return {"ok": True, "username": payload.username, "role": user["role"]}
 
 
 @router.post("/session/logout")
@@ -29,25 +31,32 @@ def session(request: Request):
     return {
         "authenticated": bool(request.session.get("admin_logged_in")),
         "username": request.session.get("admin_username"),
+        "role": request.session.get("admin_role"),
     }
 
 
 @router.get("/bootstrap")
 def bootstrap(request: Request, container=Depends(get_container)):
     shared._require_admin(request)
+    role = str(request.session.get("admin_role") or "").strip()
+    is_super = role == "super_admin"
     runtime_config = container.runtime_service.get_runtime_config().model_dump()
+    nav = [
+        {"key": "quizzes", "label": "测验", "href": "/admin/quizzes"},
+        {"key": "quiz-analytics", "label": "测验分析", "href": "/admin/quiz-analytics"},
+        {"key": "candidates", "label": "候选人", "href": "/admin/candidates"},
+        {"key": "job-descriptions", "label": "职位管理", "href": "/admin/job-descriptions"},
+        {"key": "assignments", "label": "邀约与答题", "href": "/admin/assignments"},
+    ]
+    if is_super:
+        nav.append({"key": "accounts", "label": "账户管理", "href": "/admin/accounts"})
+        nav.append({"key": "logs", "label": "系统日志", "href": "/admin/logs"})
+        nav.append({"key": "status", "label": "系统状态", "href": "/admin/status"})
     return {
+        "role": role,
         "brand": {"name": "MD Quiz", "theme": runtime_config.get("ui_theme_name") or "blue-green"},
-        "navigation": [
-            {"key": "quizzes", "label": "测验", "href": "/admin/quizzes"},
-            {"key": "quiz-analytics", "label": "测验分析", "href": "/admin/quiz-analytics"},
-            {"key": "candidates", "label": "候选人", "href": "/admin/candidates"},
-            {"key": "job-descriptions", "label": "职位管理", "href": "/admin/job-descriptions"},
-            {"key": "assignments", "label": "邀约与答题", "href": "/admin/assignments"},
-            {"key": "logs", "label": "系统日志", "href": "/admin/logs"},
-            {"key": "status", "label": "系统状态", "href": "/admin/status"},
-        ],
-        "runtime_config": runtime_config,
+        "navigation": nav,
+        "runtime_config": runtime_config if is_super else {},
         "cards": [
             {"label": "后端架构", "value": "FastAPI + Worker + Scheduler"},
             {"label": "后台入口", "value": "/admin"},

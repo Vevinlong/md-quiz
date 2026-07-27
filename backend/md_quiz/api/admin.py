@@ -36,6 +36,17 @@ class AdminLoginPayload(BaseModel):
     password: str
 
 
+class AdminUserCreatePayload(BaseModel):
+    username: str = Field(..., min_length=2, max_length=64)
+    password: str = Field(..., min_length=4)
+    role: str = "admin"
+
+
+class AdminUserUpdatePasswordPayload(BaseModel):
+    user_id: int
+    password: str = Field(..., min_length=4)
+
+
 class RuntimeConfigPatch(BaseModel):
     token_daily_threshold: int | None = Field(default=None, ge=0)
     sms_daily_threshold: int | None = Field(default=None, ge=0)
@@ -109,6 +120,12 @@ class AssignmentHandlingPayload(BaseModel):
 def _require_admin(request: Request) -> None:
     if not request.session.get("admin_logged_in"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="需要先登录后台")
+
+
+def _require_super_admin(request: Request) -> None:
+    _require_admin(request)
+    if request.session.get("admin_role") != "super_admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员权限")
 
 
 def _status_label(status_key: str) -> str:
@@ -1730,6 +1747,7 @@ def _serialize_quiz_analytics_detail(
         "items": items,
     }
 
+from .admin_account_routes import router as admin_account_router
 from .admin_assignment_routes import router as admin_assignment_router
 from .admin_candidate_routes import router as admin_candidate_router
 from .admin_core_routes import router as admin_core_router
@@ -1738,6 +1756,7 @@ from .admin_monitor_routes import router as admin_monitor_router
 from .admin_quiz_analytics_routes import router as admin_quiz_analytics_router
 from .admin_quiz_routes import router as admin_quiz_router
 
+router.include_router(admin_account_router)
 router.include_router(admin_core_router)
 router.include_router(admin_quiz_router)
 router.include_router(admin_quiz_analytics_router)
