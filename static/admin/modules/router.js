@@ -13,6 +13,7 @@ export const ADMIN_ROUTE_FRAGMENTS = {
   logs: { fragment: "/static/admin/pages/logs.html", mountRef: "pageMount" },
   status: { fragment: "/static/admin/pages/status.html", mountRef: "pageMount" },
   mcp: { fragment: "/static/admin/pages/mcp.html", mountRef: "pageMount" },
+  accounts: { fragment: "/static/admin/pages/accounts.html", mountRef: "pageMount" },
 };
 
 export function createAdminRouterModule() {
@@ -125,6 +126,9 @@ export function createAdminRouterModule() {
       if (path === "/admin/assignments") {
         return withMeta({ name: "assignments", path, title: "邀约与答题", section: "Assignments", params: {} });
       }
+      if (path === "/admin/accounts") {
+        return withMeta({ name: "accounts", path, title: "账户管理", section: "Accounts", params: {} });
+      }
       match = path.match(/^\/admin\/(?:attempt|result)\/([^/]+)$/);
       if (match) {
         return withMeta({
@@ -150,6 +154,25 @@ export function createAdminRouterModule() {
     async refreshSession() {
       const data = await this.api("/api/admin/session", { quiet: true });
       this.session = data || { authenticated: false, username: "" };
+      // Rebuild navItems based on role
+      const common = [
+        { href: "/admin/quizzes", label: "测验", icon: "library_books" },
+        { href: "/admin/quiz-analytics", label: "测验分析", icon: "analytics" },
+        { href: "/admin/job-descriptions", label: "职位管理", icon: "work" },
+        { href: "/admin/candidates", label: "候选人", icon: "group" },
+        { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
+      ];
+      if (this.session.authenticated && this.session.role === "super_admin") {
+        this.navItems = [
+          ...common,
+          { href: "/admin/accounts", label: "账户管理", icon: "manage_accounts" },
+          { href: "/admin/logs", label: "系统日志", icon: "receipt_long" },
+          { href: "/admin/status", label: "系统状态", icon: "monitoring" },
+          { href: "/admin/mcp", label: "MCP", iconKind: "mcp" },
+        ];
+      } else {
+        this.navItems = common;
+      }
       return this.session;
     },
 
@@ -268,6 +291,9 @@ export function createAdminRouterModule() {
           break;
         case "mcp":
           await this.loadMcpPage();
+          break;
+        case "accounts":
+          await this.loadAccounts();
           break;
         default:
           break;

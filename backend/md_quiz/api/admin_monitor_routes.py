@@ -20,7 +20,7 @@ def get_logs(
     days: int = Query(default=30, ge=7, le=120),
     tz_offset_minutes: int = Query(default=0, ge=-720, le=840),
 ):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     page_size = max(1, min(100, int(limit or 20)))
     total = int(shared.deps.count_operation_logs() or 0)
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -49,7 +49,7 @@ def get_logs(
 
 @router.get("/logs/updates")
 def get_log_updates(request: Request, after_id: int = 0, limit: int = 20):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     page_size = max(1, min(50, int(limit or 20)))
     rows = shared.deps.list_operation_logs_after_id(after_id=int(after_id or 0), limit=page_size)
     items = [shared._serialize_log_row(row) for row in rows]
@@ -59,13 +59,13 @@ def get_log_updates(request: Request, after_id: int = 0, limit: int = 20):
 
 @router.get("/system-status/summary")
 def get_system_status_summary(request: Request):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     return shared.system_status_helpers._get_cached_system_status_summary()
 
 
 @router.get("/mcp/summary")
 def get_mcp_summary(request: Request):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     return build_mcp_admin_payload(request.app.state.container.settings)
 
 
@@ -75,7 +75,7 @@ def get_system_status_range(
     start: str = "",
     end: str = "",
 ):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     today = datetime.now().astimezone().date()
     start_day = shared._parse_date_ymd(start) or (today - timedelta(days=29))
     end_day = shared._parse_date_ymd(end) or today
@@ -90,7 +90,7 @@ def get_system_status_range(
 
 @router.put("/system-status/config")
 def update_system_status_config(payload: dict[str, Any], request: Request):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     config = shared.system_status_helpers._save_system_status_cfg(payload if isinstance(payload, dict) else {})
     try:
         shared.deps.emit_alerts_for_current_snapshot()
@@ -105,7 +105,7 @@ def update_system_status_config(payload: dict[str, Any], request: Request):
 
 @router.post("/system-status/alerts/cleanup")
 def cleanup_system_status_alerts(payload: dict[str, Any], request: Request):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     body = payload if isinstance(payload, dict) else {}
     day = str(body.get("day") or "").strip()
     kind = str(body.get("kind") or "").strip()
@@ -118,7 +118,7 @@ def cleanup_system_status_alerts(payload: dict[str, Any], request: Request):
 
 @router.post("/system-status/alerts/backfill")
 def backfill_system_status_alerts(payload: dict[str, Any], request: Request):
-    shared._require_admin(request)
+    shared._require_super_admin(request)
     body = payload if isinstance(payload, dict) else {}
     day = str(body.get("day") or "").strip()
     kind = str(body.get("kind") or "").strip()
