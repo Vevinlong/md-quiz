@@ -5,6 +5,9 @@ x-app-service: &app-service
     args:
       NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm-slim}
       PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim-bookworm}
+      GIT_BRANCH: ${GIT_BRANCH:-}
+      GIT_COMMIT: ${GIT_COMMIT:-}
+      GIT_COMMIT_COUNT: ${GIT_COMMIT_COUNT:-}
   image: ${MD_QUIZ_IMAGE:-md-quiz:local}
   restart: unless-stopped
   init: true

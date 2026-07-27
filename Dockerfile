@@ -1,5 +1,8 @@
 ARG NODE_IMAGE=node:20-bookworm-slim
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+ARG GIT_BRANCH=
+ARG GIT_COMMIT=
+ARG GIT_COMMIT_COUNT=
 
 FROM ${NODE_IMAGE} AS frontend-builder
 
@@ -16,6 +19,9 @@ RUN npm run build:admin-css
 
 
 FROM ${PYTHON_IMAGE} AS runtime
+ARG GIT_BRANCH
+ARG GIT_COMMIT
+ARG GIT_COMMIT_COUNT
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -24,6 +30,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
 WORKDIR /app
+
+# 生成版本信息（优先使用 build ARG，否则用文件默认值）
+COPY VERSION ./VERSION
+RUN BRANCH="${GIT_BRANCH:-$(cat VERSION | tr -d '[:space:]')}" && \
+    COMMIT="${GIT_COMMIT:-0000000}" && \
+    COUNT="${GIT_COMMIT_COUNT:-0}" && \
+    BASE=$(cat VERSION | tr -d '[:space:]') && \
+    mkdir -p /app/static && \
+    echo "{\"version\":\"V${BASE}.${COUNT}-[${BRANCH}]-(${COMMIT})\",\"base\":\"${BASE}\",\"build\":${COUNT},\"branch\":\"${BRANCH}\",\"commit\":\"${COMMIT}\"}" > /app/static/version.json && \
+    echo "Version built: V${BASE}.${COUNT}-[${BRANCH}]-(${COMMIT})"
 
 # 替换为阿里云 apt 源（Debian Bookworm）
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
@@ -43,7 +59,6 @@ COPY static/public/ ./static/public/
 COPY static/assets/ ./static/assets/
 COPY static/vendor/ ./static/vendor/
 COPY static/logo.png ./static/logo.png
-COPY static/version.json ./static/version.json
 COPY --from=frontend-builder /app/static/admin.css ./static/admin.css
 COPY --from=frontend-builder /app/static/public.css ./static/public.css
 COPY --from=frontend-builder /app/static/assets/js/alpine.min.js ./static/assets/js/alpine.min.js
