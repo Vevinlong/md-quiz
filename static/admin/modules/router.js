@@ -154,12 +154,24 @@ export function createAdminRouterModule() {
     async refreshSession() {
       const data = await this.api("/api/admin/session", { quiet: true });
       this.session = data || { authenticated: false, username: "" };
-      // Update navItems based on role
+      // Rebuild navItems based on role
+      const common = [
+        { href: "/admin/quizzes", label: "测验", icon: "library_books" },
+        { href: "/admin/quiz-analytics", label: "测验分析", icon: "analytics" },
+        { href: "/admin/job-descriptions", label: "职位管理", icon: "work" },
+        { href: "/admin/candidates", label: "候选人", icon: "group" },
+        { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
+      ];
       if (this.session.authenticated && this.session.role === "super_admin") {
-        const hasAccounts = this.navItems.some((i) => i.href === "/admin/accounts");
-        if (!hasAccounts) {
-          this.navItems = [...this.navItems.slice(0, 5), { href: "/admin/accounts", label: "账户管理", icon: "manage_accounts" }, ...this.navItems.slice(5)];
-        }
+        this.navItems = [
+          ...common,
+          { href: "/admin/accounts", label: "账户管理", icon: "manage_accounts" },
+          { href: "/admin/logs", label: "系统日志", icon: "receipt_long" },
+          { href: "/admin/status", label: "系统状态", icon: "monitoring" },
+          { href: "/admin/mcp", label: "MCP", iconKind: "mcp" },
+        ];
+      } else {
+        this.navItems = common;
       }
       return this.session;
     },
