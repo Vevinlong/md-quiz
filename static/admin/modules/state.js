@@ -45,6 +45,13 @@ navItems: [
   { href: "/admin/mcp", label: "MCP", iconKind: "mcp" },
 ],
 loginForm: { username: "", password: "" },
+accountList: [],
+showCreateForm: false,
+createForm: { username: "", password: "" },
+createBusy: false,
+createError: "",
+deleteTarget: null,
+deleteBusy: false,
 filters: {
   quizzes: { q: "" },
   quizAnalytics: { q: "", start_date: "", end_date: "" },

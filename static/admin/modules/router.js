@@ -13,6 +13,7 @@ export const ADMIN_ROUTE_FRAGMENTS = {
   logs: { fragment: "/static/admin/pages/logs.html", mountRef: "pageMount" },
   status: { fragment: "/static/admin/pages/status.html", mountRef: "pageMount" },
   mcp: { fragment: "/static/admin/pages/mcp.html", mountRef: "pageMount" },
+  accounts: { fragment: "/static/admin/pages/accounts.html", mountRef: "pageMount" },
 };
 
 export function createAdminRouterModule() {
@@ -125,6 +126,9 @@ export function createAdminRouterModule() {
       if (path === "/admin/assignments") {
         return withMeta({ name: "assignments", path, title: "邀约与答题", section: "Assignments", params: {} });
       }
+      if (path === "/admin/accounts") {
+        return withMeta({ name: "accounts", path, title: "账户管理", section: "Accounts", params: {} });
+      }
       match = path.match(/^\/admin\/(?:attempt|result)\/([^/]+)$/);
       if (match) {
         return withMeta({
@@ -150,6 +154,13 @@ export function createAdminRouterModule() {
     async refreshSession() {
       const data = await this.api("/api/admin/session", { quiet: true });
       this.session = data || { authenticated: false, username: "" };
+      // Update navItems based on role
+      if (this.session.authenticated && this.session.role === "super_admin") {
+        const hasAccounts = this.navItems.some((i) => i.href === "/admin/accounts");
+        if (!hasAccounts) {
+          this.navItems = [...this.navItems.slice(0, 5), { href: "/admin/accounts", label: "账户管理", icon: "manage_accounts" }, ...this.navItems.slice(5)];
+        }
+      }
       return this.session;
     },
 
@@ -268,6 +279,9 @@ export function createAdminRouterModule() {
           break;
         case "mcp":
           await this.loadMcpPage();
+          break;
+        case "accounts":
+          await this.loadAccounts();
           break;
         default:
           break;
