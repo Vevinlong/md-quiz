@@ -23,6 +23,7 @@ mkdir -p "$OUTPUT_DIR"
 cat > "$OUTPUT_FILE" << EOF
 {
   "version": "$FULL_VERSION",
+  "display": "V${BASE_VERSION}.${COMMIT_COUNT}",
   "base": "$BASE_VERSION",
   "build": $COMMIT_COUNT,
   "branch": "$BRANCH",

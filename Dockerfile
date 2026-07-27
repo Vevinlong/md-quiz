@@ -38,7 +38,8 @@ RUN BRANCH="${GIT_BRANCH:-$(cat VERSION | tr -d '[:space:]')}" && \
     COUNT="${GIT_COMMIT_COUNT:-0}" && \
     BASE=$(cat VERSION | tr -d '[:space:]') && \
     mkdir -p /app/static && \
-    echo "{\"version\":\"V${BASE}.${COUNT}-[${BRANCH}]-(${COMMIT})\",\"base\":\"${BASE}\",\"build\":${COUNT},\"branch\":\"${BRANCH}\",\"commit\":\"${COMMIT}\"}" > /app/static/version.json && \
+    FULL="V${BASE}.${COUNT}-[${BRANCH}]-(${COMMIT})" && \
+    echo "{\"version\":\"${FULL}\",\"display\":\"V${BASE}.${COUNT}\",\"base\":\"${BASE}\",\"build\":${COUNT},\"branch\":\"${BRANCH}\",\"commit\":\"${COMMIT}\"}" > /app/static/version.json && \
     echo "Version built: V${BASE}.${COUNT}-[${BRANCH}]-(${COMMIT})"
 
 # 替换为阿里云 apt 源（Debian Bookworm）

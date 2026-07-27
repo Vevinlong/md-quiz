@@ -183,7 +183,7 @@ export function createAdminRouterModule() {
     async loadVersion() {
       try {
         const v = await this.api("/api/admin/version", { quiet: true });
-        this.buildVersion = v?.version || "";
+        this.buildVersion = v?.version ? "V" + v.base + "." + v.build : "";
       } catch (_e) {
         this.buildVersion = "";
       }
