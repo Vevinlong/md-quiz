@@ -42,11 +42,11 @@ def bootstrap(request: Request, container=Depends(get_container)):
     is_super = role == "super_admin"
     runtime_config = container.runtime_service.get_runtime_config().model_dump()
     nav = [
+        {"key": "assignments", "label": "邀约与答题", "href": "/admin/assignments"},
         {"key": "quizzes", "label": "测验", "href": "/admin/quizzes"},
         {"key": "quiz-analytics", "label": "测验分析", "href": "/admin/quiz-analytics"},
-        {"key": "candidates", "label": "候选人", "href": "/admin/candidates"},
         {"key": "job-descriptions", "label": "职位管理", "href": "/admin/job-descriptions"},
-        {"key": "assignments", "label": "邀约与答题", "href": "/admin/assignments"},
+        {"key": "candidates", "label": "候选人", "href": "/admin/candidates"},
     ]
     if is_super:
         nav.append({"key": "accounts", "label": "账户管理", "href": "/admin/accounts"})

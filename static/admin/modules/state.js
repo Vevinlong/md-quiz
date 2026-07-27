@@ -34,6 +34,7 @@ notices: [],
 noticeSeq: 0,
 session: { authenticated: false, username: "" },
 route: { name: "login", path: "/admin/login", fullPath: "/admin/login", search: "", query: {}, title: "管理员登录", section: "Login", params: {} },
+defaultRoute: { name: "assignments", path: "/admin/assignments", title: "邀约与答题", section: "Assignments", params: {} },
 navItems: [
   { href: "/admin/quizzes", label: "测验", icon: "library_books" },
   { href: "/admin/quiz-analytics", label: "测验分析", icon: "analytics" },
