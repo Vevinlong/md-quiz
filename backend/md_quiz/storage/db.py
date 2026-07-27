@@ -5009,9 +5009,11 @@ def _check_admin_password(password: str, password_hash: str) -> bool:
 
 
 def ensure_super_admin(username: str, password: str) -> dict[str, Any] | None:
-    """Create the super admin from env vars if not exists. Called at startup."""
+    """Create or update the super admin from env vars on every startup."""
     user = get_admin_user_by_username(username)
-    if user:
-        return user
     pwd_hash = _hash_admin_password(password)
+    if user:
+        if user["password_hash"] != pwd_hash:
+            update_admin_user_password(user["id"], pwd_hash)
+        return user
     return create_admin_user(username=username, password_hash=pwd_hash, role="super_admin")
