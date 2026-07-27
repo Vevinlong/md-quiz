@@ -179,11 +179,11 @@ export function createAdminRouterModule() {
     async loadBootstrap() {
       await Promise.all([
         this.loadSystemBootstrap(),
-        this.loadStatusSummary(),
         this.loadQuizzes({ quiet: true }),
         this.loadQuizOptions({ quiet: true }),
         this.loadCandidates({ quiet: true }),
       ]);
+      try { await this.loadStatusSummary(); } catch (_e) { /* 403 if not super_admin */ }
     },
 
     setRouteSearchParams(nextParams = {}, { replace = true } = {}) {
