@@ -51,5 +51,40 @@ export function createAdminAccountsModule() {
         this.deleteBusy = false;
       }
     },
+    resetPasswordTarget: null,
+    resetPasswordForm: { password: "" },
+    resetBusy: false,
+    resetError: "",
+
+    showResetPassword(user) {
+      this.resetPasswordTarget = user;
+      this.resetPasswordForm = { password: "" };
+      this.resetError = "";
+    },
+
+    async confirmResetPassword() {
+      const password = String(this.resetPasswordForm?.password || "").trim();
+      if (!password || password.length < 4) {
+        this.resetError = "密码至少 4 位";
+        return;
+      }
+      if (!this.resetPasswordTarget) return;
+      this.resetBusy = true;
+      this.resetError = "";
+      try {
+        await this.api(`/api/admin/accounts/${this.resetPasswordTarget.id}/password`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        this.resetPasswordTarget = null;
+        this.resetPasswordForm = { password: "" };
+        this.showNotice("密码已重置");
+      } catch (e) {
+        this.resetError = String(e?.message || "重置失败");
+      } finally {
+        this.resetBusy = false;
+      }
+    },
   };
 }

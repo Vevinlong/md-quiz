@@ -28,7 +28,10 @@
               </td>
               <td class="px-5 py-4 text-slate-500" x-text="user.created_at ? new Date(user.created_at).toLocaleString('zh-CN') : '-'"></td>
               <td class="px-5 py-4">
-                <button x-show="user.role !== 'super_admin'" type="button" @click="deleteAccount(user)" class="text-sm font-medium text-red-500 hover:text-red-700">删除</button>
+                <div class="flex items-center gap-3">
+                  <button type="button" @click="showResetPassword(user)" class="text-sm font-medium text-blue-600 hover:text-blue-800">重置密码</button>
+                  <button x-show="user.role !== 'super_admin'" type="button" @click="deleteAccount(user)" class="text-sm font-medium text-red-500 hover:text-red-700">删除</button>
+                </div>
               </td>
             </tr>
           </template>
@@ -67,6 +70,25 @@
           <button type="button" @click="deleteTarget = null" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">取消</button>
           <button type="button" @click="confirmDeleteAccount" :disabled="deleteBusy" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60" x-text="deleteBusy ? '删除中...' : '删除'"></button>
         </div>
+      </div>
+    </div>
+
+    <!-- reset password modal -->
+    <div x-show="resetPasswordTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="resetPasswordTarget = null">
+      <div class="mx-4 w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+        <h3 class="text-lg font-bold text-slate-900">重置密码</h3>
+        <p class="mt-2 text-sm text-slate-600" x-text="'为账户「' + (resetPasswordTarget?.username || '') + '」设置新密码。'"></p>
+        <div class="mt-4">
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">新密码</span>
+            <input x-model="resetPasswordForm.password" type="password" class="mt-1 w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="输入新密码" />
+          </label>
+        </div>
+        <div class="mt-5 flex justify-end gap-3">
+          <button type="button" @click="resetPasswordTarget = null" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">取消</button>
+          <button type="button" @click="confirmResetPassword" :disabled="resetBusy" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60" x-text="resetBusy ? '重置中...' : '确认重置'"></button>
+        </div>
+        <p x-show="resetError" class="mt-3 text-sm text-red-600" x-text="resetError"></p>
       </div>
     </div>
   </div>
