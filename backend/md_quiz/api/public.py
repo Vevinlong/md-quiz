@@ -184,10 +184,13 @@ def _current_question_remaining_seconds(
     return max(0, duration - elapsed)
 
 
-def _sync_question_timeouts(token: str, assignment: dict[str, Any], questions: list[dict[str, Any]], *, now: datetime) -> bool:
+def _sync_question_timeouts(token: str, assignment: dict[str, Any], questions: list[dict[str, Any]], *, now: datetime, exam_mode: str = "") -> bool:
     if assignment.get("grading") or not questions:
         return False
     if _assignment_ignore_timing(assignment):
+        return False
+    # full 模式：单题超时由候选人自由控制，总时长兜底
+    if exam_mode == "full":
         return False
     timing = assignment.get("timing") if isinstance(assignment.get("timing"), dict) else {}
     if not str((timing or {}).get("start_at") or "").strip():
@@ -264,6 +267,8 @@ def _build_verify_payload(assignment: dict[str, Any], *, verify: dict[str, Any],
     if mode == "direct_phone" and candidate_id > 0:
         candidate = deps.get_candidate(candidate_id) or {}
         masked_phone = _mask_phone(str(candidate.get("phone") or ""))
+    import os
+    sms_sender_name = (os.getenv("ALIYUN_PNVS_SIGN_NAME") or "").strip()
     return {
         "locked": bool(verify.get("locked")),
         "attempts": int(verify.get("attempts") or 0),
@@ -273,6 +278,7 @@ def _build_verify_payload(assignment: dict[str, Any], *, verify: dict[str, Any],
         "masked_phone": masked_phone,
         "name": str(pending_profile.get("name") or ""),
         "phone": str(sms.get("phone") or pending_profile.get("phone") or ""),
+        "sms_sender_name": sms_sender_name,
     }
 
 
@@ -312,6 +318,8 @@ def _build_quiz_payload(assignment: dict[str, Any], public_spec: dict[str, Any],
     questions = list(public_spec.get("questions") or [])
     current_index, current_question = _current_question(questions, flow)
     ignore_timing = _assignment_ignore_timing(assignment)
+    exam_mode = str(quiz_metadata.get("exam_mode") or "").strip().lower()
+    is_full = exam_mode == "full"
     return {
         "quiz_key": str(assignment.get("quiz_key") or "").strip(),
         "title": str(public_spec.get("title") or "").strip(),
@@ -324,6 +332,7 @@ def _build_quiz_payload(assignment: dict[str, Any], public_spec: dict[str, Any],
         "estimated_duration_minutes": int(quiz_metadata["estimated_duration_minutes"]),
         "answer_time_total_seconds": int(quiz_metadata.get("answer_time_total_seconds") or 0),
         "trait": dict(quiz_metadata["trait"]),
+        "exam_mode": exam_mode,
         "spec": public_spec,
         "stats": _compute_exam_stats(public_spec),
         "remaining_seconds": 0 if ignore_timing else runtime_jobs._remaining_seconds(assignment),
@@ -335,8 +344,8 @@ def _build_quiz_payload(assignment: dict[str, Any], public_spec: dict[str, Any],
             "current_index": int(flow.get("current_index") or 0),
             "current_started_at": str(flow.get("current_started_at") or ""),
             "current_question_id": str((current_question or {}).get("qid") or ""),
-            "current_question_seconds": 0 if ignore_timing else int((current_question or {}).get("answer_time_seconds") or 0),
-            "current_question_remaining_seconds": _current_question_remaining_seconds(
+            "current_question_seconds": 0 if (ignore_timing or is_full) else int((current_question or {}).get("answer_time_seconds") or 0),
+            "current_question_remaining_seconds": 0 if is_full else _current_question_remaining_seconds(
                 current_question,
                 flow,
                 ignore_timing=ignore_timing,
@@ -467,7 +476,10 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
         if not str((timing or {}).get("start_at") or "").strip():
             raise HTTPException(status_code=400, detail="请先开始答题")
 
-        if _sync_question_timeouts(token, assignment, questions, now=now):
+        exam_mode = str(public_spec.get("exam_mode") or "").strip().lower()
+        is_full = exam_mode == "full"
+
+        if _sync_question_timeouts(token, assignment, questions, now=now, exam_mode=exam_mode):
             should_reload = True
         else:
             assignment = deps.load_assignment(token)
@@ -480,6 +492,24 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
 
         if should_reload:
             pass
+        elif is_full:
+            # ── full 模式：保存答案，不推进题号，不检查 question_locked ──
+            qid = str(action.question_id or "").strip()
+            if qid:
+                normalized_answer = _normalize_answer_for_question(
+                    next((q for q in questions if str(q.get("qid") or "") == qid), {}),
+                    action.answer,
+                )
+                answers = assignment.setdefault("answers", {})
+                if normalized_answer is None or normalized_answer == "" or normalized_answer == []:
+                    answers.pop(qid, None)
+                else:
+                    answers[qid] = normalized_answer
+
+            if action.submit:
+                runtime_jobs._finalize_public_submission(token, assignment, now=now)
+            else:
+                deps.save_assignment(token, assignment)
         else:
             flow = _normalize_question_flow(assignment)
             current_index, question = _current_question(questions, flow)
@@ -621,7 +651,8 @@ def _bootstrap_attempt(token: str, *, session_id: str = "") -> dict[str, Any]:
     with deps.assignment_locked(token):
         assignment = deps.load_assignment(token)
         changed = _sync_assignment_time_limit_fields(assignment, public_spec)
-        if _sync_question_timeouts(token, assignment, questions, now=datetime.now(timezone.utc)):
+        exam_mode = str(public_spec.get("exam_mode") or "").strip().lower()
+        if _sync_question_timeouts(token, assignment, questions, now=datetime.now(timezone.utc), exam_mode=exam_mode):
             assignment = deps.load_assignment(token)
         elif _register_public_session(token, assignment, session_id, now=datetime.now(timezone.utc)):
             assignment = deps.load_assignment(token)
@@ -803,6 +834,11 @@ def public_resume_use_existing(payload: UseExistingResumePayload):
     return public_flow_service.use_existing_public_resume(token=payload.token)
 
 
+@router.post("/resume/skip")
+def public_resume_skip(payload: UseExistingResumePayload):
+    return public_flow_service.skip_public_resume(token=payload.token)
+
+
 @router.post("/answers/{token}")
 async def public_save_answer(token: str, request: Request):
     content_type = str(request.headers.get("content-type") or "").lower()
@@ -858,7 +894,8 @@ def public_submit(token: str):
         public_spec, _quiz_metadata = _load_public_quiz_bundle(assignment)
         questions = list(public_spec.get("questions") or [])
         _sync_assignment_time_limit_fields(assignment, public_spec)
-        if _sync_question_timeouts(token, assignment, questions, now=now):
+        exam_mode = str(public_spec.get("exam_mode") or "").strip().lower()
+        if _sync_question_timeouts(token, assignment, questions, now=now, exam_mode=exam_mode):
             return {"ok": True, "redirect": f"/done/{token}"}
         assignment = deps.load_assignment(token)
         flow = _normalize_question_flow(assignment)

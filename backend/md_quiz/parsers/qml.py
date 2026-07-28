@@ -147,6 +147,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         raise QmlParseError(str(exc), line=1) from exc
 
     exam_id = str(front_matter.get("id") or f"exam-{uuid.uuid4().hex[:8]}")
+    exam_mode = str(front_matter.get("exam_mode") or "").strip().lower()
     exam: dict[str, Any] = {
         "id": exam_id,
         "title": front_matter.get("title", ""),
@@ -157,6 +158,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         "question_count": question_count,
         "question_counts": question_counts,
         "estimated_duration_minutes": estimated_duration_minutes,
+        "exam_mode": exam_mode,
         "welcome_image": front_matter.get("welcome_image", ""),
         "end_image": front_matter.get("end_image", ""),
         "llm": front_matter.get("llm", {}) or {},
@@ -176,6 +178,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "question_count",
             "question_counts",
             "estimated_duration_minutes",
+            "exam_mode",
             "welcome_image",
             "end_image",
             "trait",
@@ -249,6 +252,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
         attrs = _parse_attrs(m.group("attrs"))
         scoring_mode = str(attrs.get("scoring") or "").strip().lower()
         is_trait_single = qtype == "single" and scoring_mode == "traits"
+        is_completion = scoring_mode == "completion"
         partial = bool(attrs.get("partial", False))
         media = attrs.get("media", "")
         max_points = int(attrs.get("max", points if points else 0) or 0)
@@ -351,9 +355,15 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
                         f"{qid} trait single must not use correct option (*)",
                         line=line_no(i),
                     )
+            elif is_completion:
+                if correct_keys:
+                    raise QmlParseError(
+                        f"{qid} completion must not use correct option (*)",
+                        line=line_no(i),
+                    )
             elif not correct_keys:
                 raise QmlParseError(f"{qid} has no correct option (*)", line=line_no(i))
-            if not is_trait_single and qtype == "single" and len(correct_keys) != 1:
+            if not is_trait_single and not is_completion and qtype == "single" and len(correct_keys) != 1:
                 raise QmlParseError(
                     f"{qid} single must have exactly 1 correct option",
                     line=line_no(i),
@@ -367,6 +377,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "qid": qid,
             "label": label,
             "type": qtype,
+            "scoring": scoring_mode,
             "points": points if qtype != "short" else max_points,
             "max_points": max_points if qtype == "short" else points,
             "partial": partial,

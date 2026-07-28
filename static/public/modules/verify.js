@@ -247,10 +247,11 @@ export function createPublicVerifyModule() {
           },
 
           verifyHintText() {
+            const sender = this.state.verify?.sms_sender_name || "短信服务商";
             if (this.state.verify?.mode === "direct_phone") {
-              return "验证码将发送到目标手机号，输入 4 位数字后会自动验证。";
+              return "验证码将发送到目标手机号，输入 4 位数字后会自动验证。请留意【" + sender + "】代发的验证码。";
             }
-            return "请输入姓名与手机号，收到验证码后输入 4 位数字，系统会自动完成校验。";
+            return "请输入姓名与手机号，收到验证码后输入 4 位数字，系统会自动完成校验。请留意【" + sender + "】代发的验证码。";
           },
 
           verifyAutoHintText() {

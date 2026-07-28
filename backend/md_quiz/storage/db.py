@@ -1016,6 +1016,12 @@ ALTER TABLE candidate DROP COLUMN IF EXISTS duration_seconds;
             f"Database connection failed. Please check DATABASE_URL and PostgreSQL status. Details: {type(e).__name__}({e})"
         ) from e
 
+    try:
+        _run_migrations()
+    except Exception as e:
+        logger.exception("Migration failed: %s", e)
+        raise RuntimeError(f"Database migration failed: {e}") from e
+
 
 # 从 PostgreSQL 的 candidate 表里查询候选人（考生）列表，倒序排列
 def list_candidates(
@@ -2534,6 +2540,59 @@ SET
                     _json_param(archive or {}),
                 ),
             )
+
+
+def update_quiz_archive_grading_overrides(
+    *,
+    token: str,
+    overrides: dict[str, dict[str, Any]],
+    admin_username: str = "admin",
+) -> dict[str, Any]:
+    """Merge manual grading overrides into the quiz_archive and return the updated archive dict.
+
+    `overrides` is a mapping of qid -> {score: int, reason: str | None}.
+    """
+    archive_row = get_quiz_archive_by_token(token)
+    if not archive_row:
+        raise FileNotFoundError(f"找不到答题归档: {token}")
+    archive_data = archive_row.get("archive") or {}
+    if not isinstance(archive_data, dict):
+        archive_data = {}
+    grading = archive_data.get("grading")
+    if not isinstance(grading, dict):
+        grading = {}
+        archive_data["grading"] = grading
+    manual = grading.get("manual_overrides")
+    if not isinstance(manual, dict):
+        manual = {}
+    for qid, override in (overrides or {}).items():
+        qid = str(qid or "").strip()
+        if not qid:
+            continue
+        if override is None:
+            manual.pop(qid, None)
+            continue
+        entry = dict(manual.get(qid) or {}) if isinstance(manual.get(qid), dict) else {}
+        if "score" in override:
+            entry["score"] = override["score"]
+        if "reason" in override:
+            entry["reason"] = str(override["reason"] or "").strip()
+        entry["updated_by"] = str(admin_username or "admin").strip()
+        from datetime import UTC, datetime
+        entry["updated_at"] = datetime.now(UTC).isoformat()
+        manual[qid] = entry
+    grading["manual_overrides"] = manual
+    grading["grading_source_modified"] = True
+    save_quiz_archive(
+        archive_name=str(archive_row.get("archive_name") or "").strip(),
+        token=token,
+        candidate_id=archive_row.get("candidate_id"),
+        quiz_key=str(archive_row.get("quiz_key") or "").strip(),
+        quiz_version_id=archive_row.get("quiz_version_id"),
+        phone=str(archive_row.get("phone") or "").strip(),
+        archive=archive_data,
+    )
+    return archive_data
 
 
 def get_quiz_archive_by_name(archive_name: str) -> dict[str, Any] | None:
@@ -4819,3 +4878,142 @@ def list_quiz_paper_analytics_rows(
         item["archive"] = _json_load(item.get("archive")) or {}
         out.append(item)
     return out
+
+
+# ── Database Migration System ──────────────────────────────────────────────
+
+_SCHEMA_VERSION_KEY = "db_schema_version"
+
+def _get_schema_version() -> int:
+    try:
+        v = get_runtime_kv(_SCHEMA_VERSION_KEY) or {}
+        return int(v.get("value") or 0)
+    except Exception:
+        return 0
+
+def _set_schema_version(version: int) -> None:
+    set_runtime_kv(_SCHEMA_VERSION_KEY, str(version))
+
+def _run_migrations() -> None:
+    current = _get_schema_version()
+    for version, name, fn in _MIGRATIONS:
+        if version <= current:
+            continue
+        logger.info("Running migration %s: %s", version, name)
+        fn()
+        _set_schema_version(version)
+        logger.info("Migration %s complete", version)
+
+_MIGRATIONS: list[tuple[int, str, callable]] = []
+
+def _register_migration(version: int, name: str):
+    def wrapper(fn):
+        _MIGRATIONS.append((version, name, fn))
+        _MIGRATIONS.sort(key=lambda x: x[0])
+        return fn
+    return wrapper
+
+
+# ── Migration: 001 - admin_user table ──
+
+@_register_migration(1, "create admin_user table")
+def _migrate_001_admin_user():
+    ddl = """
+    CREATE TABLE IF NOT EXISTS admin_user (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(64) UNIQUE NOT NULL,
+        password_hash VARCHAR(256) NOT NULL,
+        role VARCHAR(16) NOT NULL DEFAULT 'admin',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_user_role ON admin_user(role);
+    """
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(ddl)
+
+
+# ── Admin User Storage ─────────────────────────────────────────────────────
+
+def get_admin_user_by_username(username: str) -> dict[str, Any] | None:
+    sql = "SELECT id, username, password_hash, role, created_at, updated_at FROM admin_user WHERE username = %s"
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (str(username).strip(),))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def list_admin_users() -> list[dict[str, Any]]:
+    sql = "SELECT id, username, role, created_at, updated_at FROM admin_user ORDER BY created_at ASC"
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def create_admin_user(username: str, password_hash: str, role: str = "admin") -> dict[str, Any]:
+    sql = """INSERT INTO admin_user (username, password_hash, role)
+VALUES (%s, %s, %s)
+RETURNING id, username, role, created_at, updated_at"""
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (str(username).strip(), password_hash, str(role).strip()))
+            return dict(cur.fetchone())
+
+
+def update_admin_user_password(user_id: int, password_hash: str) -> None:
+    sql = "UPDATE admin_user SET password_hash = %s, updated_at = NOW() WHERE id = %s"
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (password_hash, int(user_id)))
+
+
+def update_admin_user_role(user_id: int, role: str) -> None:
+    sql = "UPDATE admin_user SET role = %s, updated_at = NOW() WHERE id = %s"
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (str(role).strip(), int(user_id)))
+
+
+def delete_admin_user(user_id: int) -> bool:
+    sql = "DELETE FROM admin_user WHERE id = %s"
+    with conn_scope() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (int(user_id),))
+            return cur.rowcount > 0
+
+
+def count_admin_users() -> int:
+    sql = "SELECT COUNT(*) AS cnt FROM admin_user"
+    with conn_scope() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            row = cur.fetchone()
+    return dict(row)["cnt"] if row else 0
+
+
+def _hash_admin_password(password: str) -> str:
+    import hashlib, secrets
+    salt = secrets.token_hex(8)
+    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    return f"{salt}${h}"
+
+
+def _check_admin_password(password: str, password_hash: str) -> bool:
+    import hashlib
+    if "$" not in password_hash:
+        return False
+    salt, h = password_hash.split("$", 1)
+    return hashlib.sha256((salt + password).encode("utf-8")).hexdigest() == h
+
+
+def ensure_super_admin(username: str, password: str) -> dict[str, Any] | None:
+    """Create or update the super admin from env vars on every startup."""
+    user = get_admin_user_by_username(username)
+    pwd_hash = _hash_admin_password(password)
+    if user:
+        if user["password_hash"] != pwd_hash:
+            update_admin_user_password(user["id"], pwd_hash)
+        return user
+    return create_admin_user(username=username, password_hash=pwd_hash, role="super_admin")

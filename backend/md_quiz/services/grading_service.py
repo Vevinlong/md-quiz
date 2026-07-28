@@ -8,6 +8,26 @@ from backend.md_quiz.services import grading_analysis, grading_short_answer, gra
 from backend.md_quiz.services.llm_client import call_llm_json, call_llm_text
 
 
+def _grade_completion(q: dict[str, Any], ans: Any) -> int:
+    qtype = q["type"]
+    points = int(q.get("points") or 0)
+    options = q.get("options", [])
+    if not options:
+        return 0
+
+    if qtype == "single":
+        return points if str(ans or "").strip() else 0
+
+    if qtype == "multiple":
+        given = set(ans) if isinstance(ans, list) else set()
+        if not given:
+            return 0
+        raw = points * len(given) / len(options)
+        return max(0, min(points, round(raw)))
+
+    return 0
+
+
 def _grade_objective(q: dict[str, Any], ans: Any) -> int:
     qtype = q["type"]
     points = int(q.get("points") or 0)
@@ -59,7 +79,10 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
         raw_total += max_points
 
         if qtype in {"single", "multiple"}:
-            scored = _grade_objective(q, answers.get(qid))
+            if str(q.get("scoring") or "").strip().lower() == "completion":
+                scored = _grade_completion(q, answers.get(qid))
+            else:
+                scored = _grade_objective(q, answers.get(qid))
             raw_scored += scored
             objective_details.append({"qid": qid, "score": scored, "max": max_points})
             continue

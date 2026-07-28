@@ -5,6 +5,7 @@ export const PUBLIC_VIEW_FRAGMENTS = {
   start: "/static/public/views/start.html",
   resume: "/static/public/views/resume.html",
   question: "/static/public/views/question.html",
+  "full-quiz": "/static/public/views/full-quiz.html",
   done: "/static/public/views/done.html",
 };
 

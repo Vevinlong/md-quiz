@@ -1,0 +1,240 @@
+export function createPublicFullQuizModule() {
+  // ── group definitions ──
+  const QUESTION_GROUPS = [
+    { label: "选择题", types: ["single", "multiple"] },
+    { label: "简答题", types: ["short"] },
+    { label: "量表题", types: ["traits"] },
+  ];
+
+  return {
+    // ── question helpers ──
+
+    allQuestions() {
+      return this.state.quiz?.spec?.questions || [];
+    },
+
+    questionGroups() {
+      const all = this.allQuestions();
+      const groups = [];
+      for (const group of QUESTION_GROUPS) {
+        const qs = all.filter((q) => group.types.includes(String(q.type || "").trim()));
+        if (qs.length > 0) {
+          groups.push({ ...group, questions: qs });
+        }
+      }
+      return groups;
+    },
+
+    answeredQids() {
+      const answers = this.state.assignment?.answers || {};
+      return new Set(Object.keys(answers).filter((qid) => {
+        const v = answers[qid];
+        return v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+      }));
+    },
+
+    unansweredQuestions() {
+      const answered = this.answeredQids();
+      return this.allQuestions().filter((q) => !answered.has(String(q.qid || "")));
+    },
+
+    answeredCount() {
+      return this.answeredQids().size;
+    },
+
+    totalQuestions() {
+      return this.allQuestions().length;
+    },
+
+    questionStatus(qid) {
+      return this.answeredQids().has(String(qid || "")) ? "answered" : "unanswered";
+    },
+
+    groupAnsweredCount(group) {
+      const answered = this.answeredQids();
+      return (group.questions || []).filter((q) => answered.has(String(q.qid || ""))).length;
+    },
+
+    groupTotalPoints(group) {
+      return (group.questions || []).reduce((sum, q) => sum + Number(q.points || q.max_points || 0), 0);
+    },
+
+    groupSectionLabel(gi) {
+      const labels = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+      return labels[gi] || String(gi + 1);
+    },
+
+    questionTypeLabel(type) {
+      const map = { single: "单选", multiple: "多选", short: "简答", traits: "量表" };
+      return map[String(type || "").trim()] || type;
+    },
+
+    currentQidFromHash() {
+      const hash = location.hash.replace(/^#/, "");
+      if (hash.startsWith("q-")) return hash.slice(2);
+      return "";
+    },
+
+    // ── answer actions ──
+
+    async saveAnswer(question, value) {
+      if (!question || !this.route.token) return;
+      const qid = String(question.qid || "");
+      if (!qid) return;
+      this.actionBusy = true;
+      try {
+        await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
+          method: "POST",
+          body: JSON.stringify({
+            question_id: qid,
+            answer: value,
+            advance: false,
+            submit: false,
+            session_id: this.sessionId,
+          }),
+          headers: { "Content-Type": "application/json" },
+        });
+      } finally {
+        this.actionBusy = false;
+      }
+    },
+
+    async selectSingleOption(question, optionKey) {
+      if (this.actionBusy) return;
+      const qid = String(question.qid || "");
+      if (!qid) return;
+      if (!this.state.assignment.answers) this.state.assignment.answers = {};
+      this.state.assignment.answers[qid] = String(optionKey || "");
+      await this.saveAnswer(question, String(optionKey || ""));
+    },
+
+    toggleMultipleOption(question, optionKey) {
+      if (this.actionBusy) return;
+      const qid = String(question.qid || "");
+      if (!qid) return;
+      if (!this.state.assignment.answers) this.state.assignment.answers = {};
+      const current = Array.isArray(this.state.assignment.answers[qid])
+        ? [...this.state.assignment.answers[qid]]
+        : [];
+      const value = String(optionKey || "");
+      if (!value) return;
+      const idx = current.indexOf(value);
+      if (idx >= 0) {
+        current.splice(idx, 1);
+      } else {
+        current.push(value);
+      }
+      this.state.assignment.answers[qid] = current;
+      this.saveAnswer(question, current);
+    },
+
+    isSingleSelected(question, optionKey) {
+      return String(this.state.assignment?.answers?.[String(question.qid || "")] || "") === String(optionKey || "");
+    },
+
+    isMultipleSelected(question, optionKey) {
+      const current = this.state.assignment?.answers?.[String(question.qid || "")] || [];
+      return Array.isArray(current) && current.includes(String(optionKey || ""));
+    },
+
+    // ── short answer ──
+
+    shortAnswerDraft(qid) {
+      return String(this.state.assignment?.answers?.[qid] || "");
+    },
+
+    _shortTimers: {},
+
+    debounceSaveShort(question) {
+      const qid = String(question.qid || "");
+      if (!qid) return;
+      if (this._shortTimers[qid]) window.clearTimeout(this._shortTimers[qid]);
+      this._shortTimers[qid] = window.setTimeout(() => {
+        delete this._shortTimers[qid];
+        const value = String(this.state.assignment?.answers?.[qid] || "").trim();
+        if (value) {
+          this.saveAnswer(question, value);
+        }
+      }, 1500);
+    },
+
+    // ── submit ──
+
+    confirmSubmitVisible: false,
+    confirmSubmitLoading: false,
+
+    showConfirmSubmit() {
+      this.confirmSubmitVisible = true;
+    },
+
+    hideConfirmSubmit() {
+      this.confirmSubmitVisible = false;
+    },
+
+    async confirmSubmit() {
+      if (this.confirmSubmitLoading) return;
+      this.confirmSubmitLoading = true;
+      try {
+        await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
+          method: "POST",
+          body: JSON.stringify({
+            question_id: "",
+            answer: null,
+            advance: false,
+            submit: true,
+            session_id: this.sessionId,
+          }),
+          headers: { "Content-Type": "application/json" },
+        });
+        await this.loadAttempt(this.route.token);
+      } finally {
+        this.confirmSubmitLoading = false;
+        this.confirmSubmitVisible = false;
+      }
+    },
+
+    // ── total countdown timer ──
+
+    totalRemainingSeconds: 0,
+    totalTimer: null,
+
+    startTotalTimer() {
+      this.stopTotalTimer();
+      const remaining = Number(this.state?.quiz?.remaining_seconds || 0);
+      if (remaining <= 0) return;
+      this.totalRemainingSeconds = remaining;
+      this.totalTimer = window.setInterval(() => {
+        if (this.totalRemainingSeconds > 0) {
+          this.totalRemainingSeconds--;
+        }
+      }, 1000);
+    },
+
+    stopTotalTimer() {
+      if (this.totalTimer) {
+        window.clearInterval(this.totalTimer);
+        this.totalTimer = null;
+      }
+    },
+
+    timerDisplay() {
+      const s = Math.max(0, Number(this.totalRemainingSeconds || 0));
+      if (s <= 0 && !this.state?.quiz?.entered_at) return "--";
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return m + "分" + sec + "秒";
+    },
+
+    progressDisplay() {
+      return this.answeredCount() + "/" + this.totalQuestions();
+    },
+
+    // ── cleanup on view switch ──
+
+    cleanupFullQuiz() {
+      this.stopTotalTimer();
+      this.confirmSubmitVisible = false;
+      this.confirmSubmitLoading = false;
+    },
+  };
+}

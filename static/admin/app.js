@@ -1,3 +1,4 @@
+import { createAdminAccountsModule } from "./modules/pages/accounts.js";
 import { createAdminApiModule } from "./modules/api.js";
 import { createAdminRouterModule } from "./modules/router.js";
 import { createAdminShellModule } from "./modules/shell.js";
@@ -18,6 +19,7 @@ const register = () => {
     ...createAdminShellModule(),
     ...createAdminQuizzesModule(),
     ...createAdminQuizAnalyticsModule(),
+    ...createAdminAccountsModule(),
     ...createAdminCandidatesModule(),
     ...createAdminJobDescriptionsModule(),
     ...createAdminAssignmentsModule(),

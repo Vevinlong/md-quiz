@@ -9,3 +9,9 @@ ui/node_modules/
 tmp/
 .codex
 To-Dos
+agentmem/
+# Windows NTFS zone identifier artifacts
+*:Zone.Identifier
+
+# generated build artifacts
+static/version.json

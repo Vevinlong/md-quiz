@@ -36,6 +36,16 @@ class AdminLoginPayload(BaseModel):
     password: str
 
 
+class AdminUserCreatePayload(BaseModel):
+    username: str = Field(..., min_length=2, max_length=64)
+    password: str = Field(..., min_length=4)
+    role: str = "admin"
+
+
+class AdminUserUpdatePasswordPayload(BaseModel):
+    password: str = Field(..., min_length=4)
+
+
 class RuntimeConfigPatch(BaseModel):
     token_daily_threshold: int | None = Field(default=None, ge=0)
     sms_daily_threshold: int | None = Field(default=None, ge=0)
@@ -109,6 +119,12 @@ class AssignmentHandlingPayload(BaseModel):
 def _require_admin(request: Request) -> None:
     if not request.session.get("admin_logged_in"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="需要先登录后台")
+
+
+def _require_super_admin(request: Request) -> None:
+    _require_admin(request)
+    if request.session.get("admin_role") != "super_admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员权限")
 
 
 def _status_label(status_key: str) -> str:
@@ -277,6 +293,7 @@ def _build_review_answer_item(
     *,
     spec_question: dict[str, Any] | None = None,
     public_question: dict[str, Any] | None = None,
+    manual_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     qid = str(raw_question.get("qid") or (spec_question or {}).get("qid") or "").strip()
     qtype = str(raw_question.get("type") or (spec_question or {}).get("type") or (public_question or {}).get("type") or "").strip()
@@ -325,6 +342,31 @@ def _build_review_answer_item(
         is_correct = set(selected_options) == set(correct_options)
         is_partial = not bool(is_correct) and score is not None and int(score or 0) > 0 and int(score or 0) < int(score_max or 0)
     score_display = _score_display(score, score_max, result_mode="scored") if review_kind != "traits" and score is not None else ""
+
+    # -- manual override --
+    override_info: dict[str, Any] | None = None
+    score_source: str = "auto"
+    reason_override_suffix: str = ""
+    if isinstance(manual_override, dict) and manual_override and review_kind != "traits":
+        if "score" in manual_override:
+            try:
+                manual_score = int(manual_override["score"])
+            except (ValueError, TypeError):
+                manual_score = score
+            if manual_score is not None:
+                score = manual_score
+                score_source = "manual"
+        manual_reason = str(manual_override.get("reason") or "").strip()
+        if manual_reason:
+            reason_override_suffix = f"\n\n[人工评语] {manual_reason}"
+        override_info = {
+            "score": score,
+            "reason": manual_reason,
+            "updated_by": str(manual_override.get("updated_by") or "").strip(),
+            "updated_at": str(manual_override.get("updated_at") or "").strip(),
+        }
+        score_display = _score_display(score, score_max, result_mode="scored")
+
     return {
         "qid": qid,
         "label": raw_question.get("label") or (spec_question or {}).get("label") or (public_question or {}).get("label") or qid,
@@ -336,6 +378,8 @@ def _build_review_answer_item(
         "score_max": score_max,
         "has_score": review_kind != "traits" and score is not None,
         "score_display": score_display,
+        "score_source": score_source,
+        "manual_override": override_info,
         "stem_md": stem_md,
         "stem_html": stem_html,
         "answer": answer,
@@ -345,7 +389,7 @@ def _build_review_answer_item(
         "selected_options": selected_options,
         "is_correct": is_correct,
         "is_partial": is_partial,
-        "reason": str(raw_question.get("reason") or "").strip(),
+        "reason": str(raw_question.get("reason") or "").strip() + reason_override_suffix,
         "rubric": rubric,
         "rubric_html": rubric_html,
     }
@@ -404,6 +448,8 @@ def _build_review_answers(
         if isinstance(question, dict) and str(question.get("qid") or "").strip()
     }
     if isinstance(archive, dict) and isinstance(archive.get("questions"), list) and archive.get("questions"):
+        grading_data = archive.get("grading") if isinstance(archive.get("grading"), dict) else {}
+        manual_overrides = grading_data.get("manual_overrides") if isinstance(grading_data.get("manual_overrides"), dict) else {}
         answers: list[dict[str, Any]] = []
         for raw_question in archive.get("questions") or []:
             if not isinstance(raw_question, dict):
@@ -414,6 +460,7 @@ def _build_review_answers(
                     dict(raw_question),
                     spec_question=spec_by_qid.get(qid),
                     public_question=public_by_qid.get(qid),
+                    manual_override=manual_overrides.get(qid),
                 )
             )
         return answers
@@ -422,6 +469,7 @@ def _build_review_answers(
         return []
 
     grading = assignment.get("grading") or {}
+    manual_overrides = grading.get("manual_overrides") if isinstance(grading.get("manual_overrides"), dict) else {}
     scored_by_qid = _build_grading_details_by_qid(grading)
     assignment_answers = assignment.get("answers") or {}
     answers: list[dict[str, Any]] = []
@@ -446,6 +494,7 @@ def _build_review_answers(
                 raw_question,
                 spec_question=spec_question,
                 public_question=public_by_qid.get(qid),
+                manual_override=manual_overrides.get(qid),
             )
         )
     return answers
@@ -465,6 +514,7 @@ def _build_review_evaluation(
     *,
     archive: dict[str, Any] | None,
     assignment: dict[str, Any] | None,
+    answers: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     archive_data = archive if isinstance(archive, dict) else {}
     assignment_data = assignment if isinstance(assignment, dict) else {}
@@ -481,11 +531,50 @@ def _build_review_evaluation(
     score_max = _coerce_int_or_none(archive_data.get("score_max"))
     if score_max is None and isinstance(grading, dict):
         score_max = _coerce_int_or_none(grading.get("total_max"))
+    # Recalculate total from answers when available — picks up manual overrides
+    if isinstance(answers, list) and answers:
+        recalc_total = 0
+        recalc_max = 0
+        has_any = False
+        for a in answers:
+            if not isinstance(a, dict):
+                continue
+            if a.get("review_kind") == "traits":
+                continue
+            if a.get("has_score"):
+                s = _coerce_int_or_none(a.get("score"))
+                if s is not None:
+                    recalc_total += s
+                    has_any = True
+                m = _coerce_int_or_none(a.get("score_max"))
+                if m is not None:
+                    recalc_max += m
+        if has_any:
+            total_score = recalc_total
+        if recalc_max > 0:
+            score_max = recalc_max
     traits = archive_data.get("traits")
     if not isinstance(traits, dict) or not traits:
         traits = (grading.get("traits") or grading.get("trait_result") or {}) if isinstance(grading, dict) else {}
     traits = dict(traits or {})
     has_score = result_mode != "traits" and total_score is not None
+    # Build final_analysis: update score text in-place when manual overrides changed the total
+    raw_final = str(
+        archive_data.get("final_analysis")
+        or (grading.get("final_analysis") if isinstance(grading, dict) else "")
+        or (grading.get("analysis") if isinstance(grading, dict) else "")
+        or ""
+    ).strip()
+    if isinstance(grading, dict) and isinstance(grading.get("manual_overrides"), dict) and grading["manual_overrides"]:
+        original_total = _coerce_int_or_none(archive_data.get("total_score"))
+        if original_total is None:
+            original_total = _coerce_int_or_none(grading.get("total"))
+        if original_total is not None and total_score is not None and original_total != total_score:
+            import re
+            old_pattern = f"{original_total}/{score_max}"
+            new_pattern = f"{total_score}/{score_max}"
+            raw_final = re.sub(re.escape(old_pattern), new_pattern, raw_final)
+
     return {
         "result_mode": result_mode,
         "result_mode_label": _result_mode_label(result_mode),
@@ -493,12 +582,7 @@ def _build_review_evaluation(
         "score_max": score_max,
         "has_score": has_score,
         "score_display": _score_display(total_score, score_max, result_mode=result_mode) if has_score else "",
-        "final_analysis": str(
-            archive_data.get("final_analysis")
-            or (grading.get("final_analysis") if isinstance(grading, dict) else "")
-            or (grading.get("analysis") if isinstance(grading, dict) else "")
-            or ""
-        ).strip(),
+        "final_analysis": raw_final,
         "candidate_remark": str(archive_data.get("candidate_remark") or assignment_data.get("candidate_remark") or "").strip(),
         "traits": traits,
         "primary_dimensions": list(traits.get("primary_dimensions") or []),
@@ -512,9 +596,10 @@ def _build_attempt_review(
     archive: dict[str, Any] | None,
     assignment: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    answers = _build_review_answers(archive=archive, assignment=assignment)
     return {
-        "answers": _build_review_answers(archive=archive, assignment=assignment),
-        "evaluation": _build_review_evaluation(archive=archive, assignment=assignment),
+        "answers": answers,
+        "evaluation": _build_review_evaluation(archive=archive, assignment=assignment, answers=answers),
     }
 
 
@@ -1661,6 +1746,7 @@ def _serialize_quiz_analytics_detail(
         "items": items,
     }
 
+from .admin_account_routes import router as admin_account_router
 from .admin_assignment_routes import router as admin_assignment_router
 from .admin_candidate_routes import router as admin_candidate_router
 from .admin_core_routes import router as admin_core_router
@@ -1669,6 +1755,7 @@ from .admin_monitor_routes import router as admin_monitor_router
 from .admin_quiz_analytics_routes import router as admin_quiz_analytics_router
 from .admin_quiz_routes import router as admin_quiz_router
 
+router.include_router(admin_account_router)
 router.include_router(admin_core_router)
 router.include_router(admin_quiz_router)
 router.include_router(admin_quiz_analytics_router)
