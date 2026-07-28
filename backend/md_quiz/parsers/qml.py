@@ -23,7 +23,7 @@ class QmlParseError(Exception):
 
 
 _HEADER_RE = re.compile(
-    r"^##\s+(?P<label>.+?)\s+\[(?P<type>single|multiple|short)\]"
+    r"^##\s+(?P<label>.+?)\s+\[(?P<type>single|multiple|short|code)\]"
     r"(?:\s+\((?P<points>\d+)\))?"
     r"(?:\s+(?P<attrs>\{.*\}))?\s*$"
 )
@@ -262,7 +262,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             line=line_no(i),
         )
 
-        if qtype == "short" and max_points <= 0:
+        if qtype in ("short", "code") and max_points <= 0:
             raise QmlParseError(
                 f"{qid} missing max points, expected {{max=N}}",
                 line=line_no(i),
@@ -368,7 +368,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
                     f"{qid} single must have exactly 1 correct option",
                     line=line_no(i),
                 )
-        if qtype == "short" and not rubric:
+        if qtype in ("short", "code") and not rubric:
             raise QmlParseError(f"{qid} short missing [rubric] block", line=line_no(i))
 
         q_llm = _parse_llm_block(llm_block) if llm_block else None
@@ -378,14 +378,15 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "label": label,
             "type": qtype,
             "scoring": scoring_mode,
-            "points": points if qtype != "short" else max_points,
-            "max_points": max_points if qtype == "short" else points,
+            "points": points if qtype not in ("short", "code") else max_points,
+            "max_points": max_points if qtype in ("short", "code") else points,
             "partial": partial,
             "media": media,
             "answer_time_seconds": int(answer_time_seconds),
             "stem_md": stem_md,
             "options": options,
             "rubric": rubric,
+            "lang": str(attrs.get("lang") or "").strip().lower(),
             "llm": q_llm,
         }
 
@@ -400,6 +401,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "answer_time_seconds": int(answer_time_seconds),
             "stem_md": stem_md,
             "options": [{"key": o["key"], "text": o["text"]} for o in options],
+            "lang": q.get("lang", ""),
         }
         return q, public_q
 
