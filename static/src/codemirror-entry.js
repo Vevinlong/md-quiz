@@ -1,6 +1,6 @@
 // CodeMirror bundle for md-quiz code editor
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { java } from "@codemirror/lang-java";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
@@ -14,7 +14,8 @@ const LANG_MAP = {
   sql,
 };
 
-// Dark theme matching slate-950 background
+// ── Dark editor chrome ──
+
 const darkTheme = EditorView.theme({
   "&": {
     minHeight: "600px",
@@ -54,14 +55,22 @@ const darkTheme = EditorView.theme({
   },
 });
 
+// ── Create editor ──
+
 export function createCodeMirror(container, options = {}) {
-  const { value = "", lang = "java", readOnly = false } = options;
-  const langFn = LANG_MAP[lang] || LANG_MAP.java;
+  const { value = "", lang = "java", readOnly = false, wrap = false } = options;
+
+  const langComp = new Compartment();
+  const wrapComp = new Compartment();
+
+  container._cmCompartments = { langComp, wrapComp };
+
   const state = EditorState.create({
     doc: value,
     extensions: [
       basicSetup,
-      langFn(),
+      langComp.of(LANG_MAP[lang]()),
+      wrapComp.of(wrap ? EditorView.lineWrapping : []),
       darkTheme,
       EditorView.updateListener.of((update) => {
         if (update.changes) {
@@ -71,11 +80,32 @@ export function createCodeMirror(container, options = {}) {
       ...(readOnly ? [EditorView.editable.of(false)] : []),
     ],
   });
+
   const view = new EditorView({ state, parent: container });
   container._cmView = view;
   container._cmValue = value;
   return view;
 }
+
+// ── Runtime reconfiguration ──
+
+export function reconfigureLanguage(el, lang) {
+  const view = el._cmView;
+  const comps = el._cmCompartments;
+  if (!view || !comps) return;
+  const fn = LANG_MAP[lang];
+  if (!fn) return;
+  view.dispatch({ effects: comps.langComp.reconfigure(fn()) });
+}
+
+export function reconfigureWrap(el, wrap) {
+  const view = el._cmView;
+  const comps = el._cmCompartments;
+  if (!view || !comps) return;
+  view.dispatch({ effects: comps.wrapComp.reconfigure(wrap ? EditorView.lineWrapping : []) });
+}
+
+// ── Value access ──
 
 export function getCodeMirrorValue(el) {
   return el._cmValue || "";
