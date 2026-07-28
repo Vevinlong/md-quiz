@@ -43,7 +43,6 @@ class AdminUserCreatePayload(BaseModel):
 
 
 class AdminUserUpdatePasswordPayload(BaseModel):
-    user_id: int
     password: str = Field(..., min_length=4)
 
 
