@@ -127,6 +127,24 @@
                     placeholder="输入你的回答…"
                   ></textarea>
                 </div>
+
+                <!-- code editor -->
+                <div class="mt-5" x-show="question.type === 'code'" x-init="
+                  $nextTick(() => {
+                    if ($el._cmView) return;
+                    const cmEl = $el.querySelector('.cm-wrap');
+                    if (cmEl) return;
+                    CodeMirrorBundle.createCodeMirror($el, {
+                      value: (state?.assignment?.answers || {})[question.qid] || '',
+                      lang: question.lang || 'java'
+                    });
+                  })
+                ">
+                  <div class="mb-2 flex items-center gap-2">
+                    <span class="rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">代码</span>
+                    <span class="text-[11px] text-slate-500" x-text="'语言: ' + (question.lang || 'java')"></span>
+                  </div>
+                </div>
               </article>
             </template>
           </div>
