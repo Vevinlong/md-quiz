@@ -7,10 +7,28 @@ from pathlib import Path
 from backend.md_quiz.config import PROJECT_ROOT, load_runtime_defaults
 from backend.md_quiz.models import ProcessHeartbeat, RuntimeConfig
 from backend.md_quiz.storage import JobStore, ProcessStore, RuntimeConfigStore
-from backend.md_quiz.storage.db import ensure_super_admin
+from backend.md_quiz.storage.db import ensure_super_admin, get_admin_user_by_username, update_admin_user_password, _hash_admin_password
 from backend.md_quiz.services.support_deps import *
 
 _RUNTIME_JSON_MIGRATION_KEY = "runtime_json_store_migration"
+_ADMIN_RESET_FLAG = "/tmp/md-quiz-reset/admin-reset.flag"
+
+
+def _handle_admin_reset_flag() -> None:
+    """If the admin reset flag file exists, reset admin password from env vars."""
+    flag = Path(_ADMIN_RESET_FLAG)
+    if not flag.exists():
+        return
+    logger.warning("Admin reset flag detected, resetting admin password from env")
+    user = get_admin_user_by_username(ADMIN_USERNAME)
+    if user:
+        new_hash = _hash_admin_password(ADMIN_PASSWORD)
+        update_admin_user_password(user["id"], new_hash)
+        logger.info("Admin password reset complete")
+    try:
+        flag.unlink()
+    except Exception:
+        pass
 
 
 class RuntimeBootstrapError(RuntimeError):
@@ -172,6 +190,13 @@ def bootstrap_runtime() -> None:
         ensure_super_admin(username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
     except Exception:
         logger.exception("Failed to ensure super admin")
+
+    # Check for admin password reset flag
+    try:
+        _handle_admin_reset_flag()
+    except Exception:
+        logger.exception("Failed to handle admin reset flag")
+
     try:
         _migrate_runtime_json_state()
     except Exception:

@@ -44,6 +44,8 @@ services:
     command: ["python", "-m", "backend.md_quiz.multi_process"]
     ports:
       - "8000:8000"
+    volumes:
+      - /home/dkw/md-quiz-reset:/tmp/md-quiz-reset
 
 volumes:
   pgdata:
