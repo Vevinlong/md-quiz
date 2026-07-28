@@ -8,6 +8,38 @@ export function createPublicFullQuizModule() {
   ];
 
   return {
+    // ── code editor settings ──
+
+    codeSettings: {
+      wrap: localStorage.getItem("md-quiz-code-wrap") === "true",
+    },
+
+    codeLangs: {},
+
+    setCodeLang(qid, lang) {
+      if (!lang) return;
+      if (!this.codeLangs) this.codeLangs = {};
+      this.codeLangs[qid] = lang;
+      this.$nextTick(() => {
+        const el = document.querySelector(`.code-mount[data-qid="${qid}"]`);
+        if (el && typeof CodeMirrorBundle !== "undefined") {
+          CodeMirrorBundle.reconfigureLanguage(el, lang);
+        }
+      });
+    },
+
+    toggleCodeWrap() {
+      const wrap = !this.codeSettings?.wrap;
+      this.codeSettings = { ...(this.codeSettings || {}), wrap };
+      localStorage.setItem("md-quiz-code-wrap", String(wrap));
+      if (typeof CodeMirrorBundle === "undefined") return;
+      document.querySelectorAll(".code-mount").forEach((el) => {
+        if (el._cmView) {
+          CodeMirrorBundle.reconfigureWrap(el, wrap);
+        }
+      });
+    },
+
     // ── question helpers ──
 
     allQuestions() {
