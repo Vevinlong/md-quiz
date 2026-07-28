@@ -11,6 +11,7 @@ export function createPublicFullQuizModule() {
     // ── code editor settings ──
 
     codeSettings: {
+      theme: localStorage.getItem("md-quiz-code-theme") || "one-dark",
       wrap: localStorage.getItem("md-quiz-code-wrap") === "true",
     },
 
@@ -25,6 +26,17 @@ export function createPublicFullQuizModule() {
         if (el && typeof CodeMirrorBundle !== "undefined") {
           CodeMirrorBundle.reconfigureLanguage(el, lang);
         }
+      });
+    },
+
+    reconfigureAllCodeThemes() {
+      const theme = this.codeSettings?.theme || "one-dark";
+      localStorage.setItem("md-quiz-code-theme", theme);
+      if (typeof CodeMirrorBundle === "undefined") return;
+      this.$nextTick(() => {
+        document.querySelectorAll(".code-mount").forEach((el) => {
+          if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, theme);
+        });
       });
     },
 
