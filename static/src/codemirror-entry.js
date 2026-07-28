@@ -176,12 +176,12 @@ const darkTheme = EditorView.theme({
     borderLeftColor: "#22c55e",
   },
   ".cm-selectionBackground": {
-    backgroundColor: "rgba(34,197,94,0.15)",
+    backgroundColor: "rgba(100,116,139,0.3)",
   },
   "&.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgba(34,197,94,0.2)",
+    backgroundColor: "rgba(100,116,139,0.42)",
   },
-});
+}, { dark: true });
 
 // ── Create editor ──
 
