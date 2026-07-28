@@ -273,7 +273,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
                     f"{qid} missing points, expected (0) for trait single",
                     line=line_no(i),
                 )
-        elif qtype != "short" and points <= 0:
+        elif qtype not in ("short", "code") and points <= 0:
             raise QmlParseError(
                 f"{qid} missing points, expected (N) for {qtype}",
                 line=line_no(i),
