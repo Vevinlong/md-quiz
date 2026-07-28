@@ -3,6 +3,7 @@ export function createPublicFullQuizModule() {
   const QUESTION_GROUPS = [
     { label: "选择题", types: ["single", "multiple"] },
     { label: "简答题", types: ["short"] },
+    { label: "编程题", types: ["code"] },
     { label: "量表题", types: ["traits"] },
   ];
 
@@ -65,7 +66,7 @@ export function createPublicFullQuizModule() {
     },
 
     questionTypeLabel(type) {
-      const map = { single: "单选", multiple: "多选", short: "简答", traits: "量表" };
+      const map = { single: "单选", multiple: "多选", short: "简答", code: "编程", traits: "量表" };
       return map[String(type || "").trim()] || type;
     },
 
