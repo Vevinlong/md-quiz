@@ -21,7 +21,10 @@ export function createCodeMirror(container, options = {}) {
     extensions: [
       basicSetup,
       langFn(),
-      EditorView.lineWrapping,
+      EditorView.theme({
+        "&": { minHeight: "600px" },
+        ".cm-scroller": { overflow: "auto" },
+      }),
       EditorView.updateListener.of((update) => {
         if (update.changes) {
           container._cmValue = update.state.doc.toString();
