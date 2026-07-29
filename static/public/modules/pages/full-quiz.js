@@ -21,6 +21,12 @@ export function createPublicFullQuizModule() {
       localStorage.setItem("md-quiz-code-theme", this.codeSettings.theme);
       // Recolor all editors
       this.reconfigureAllCodeThemes();
+      // Also switch editor chrome (background/gutters) without rebuild
+      if (typeof CodeMirrorBundle !== "undefined") {
+        document.querySelectorAll(".code-mount").forEach((el) => {
+          if (el._cmView) CodeMirrorBundle.reconfigureEditorChrome(el, next);
+        });
+      }
     },
 
     codeThemeOptions() {

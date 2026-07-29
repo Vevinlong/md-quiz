@@ -207,8 +207,9 @@ export function createCodeMirror(container, options = {}) {
   const langComp = new Compartment();
   const themeComp = new Compartment();
   const wrapComp = new Compartment();
+  const chromeComp = new Compartment();
 
-  container._cmCompartments = { langComp, themeComp, wrapComp };
+  container._cmCompartments = { langComp, themeComp, wrapComp, chromeComp };
 
   const syntaxTheme = getTheme(themeName);
   const editorChrome = pageTheme === "light" ? lightEditorTheme : darkEditorTheme;
@@ -222,7 +223,7 @@ export function createCodeMirror(container, options = {}) {
       langComp.of(LANG_MAP[lang]()),
       themeComp.of(syntaxTheme),
       wrapComp.of(wrap ? EditorView.lineWrapping : []),
-      editorChrome,
+      chromeComp.of(editorChrome),
       EditorView.updateListener.of((update) => {
         if (update.changes) container._cmValue = update.state.doc.toString();
       }),
@@ -251,6 +252,13 @@ export function reconfigureTheme(el, themeName) {
   if (!view || !comps) return;
   const th = getTheme(themeName);
   view.dispatch({ effects: comps.themeComp.reconfigure(th) });
+}
+
+export function reconfigureEditorChrome(el, pageTheme) {
+  const view = el._cmView, comps = el._cmCompartments;
+  if (!view || !comps) return;
+  const chrome = pageTheme === "light" ? lightEditorTheme : darkEditorTheme;
+  view.dispatch({ effects: comps.chromeComp.reconfigure(chrome) });
 }
 
 export function reconfigureWrap(el, wrap) {
