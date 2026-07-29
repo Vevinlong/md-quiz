@@ -44,7 +44,7 @@ _ALLOWED_TAGS = {
     "ul",
 }
 _VOID_TAGS = {"br", "hr"}
-_ALLOWED_ATTRIBUTES = {"a": {"href", "title"}}
+_ALLOWED_ATTRIBUTES = {"a": {"href", "title"}, "code": {"class"}, "pre": set()}
 _SAFE_URL_PREFIXES = ("http://", "https://", "mailto:", "/", "#")
 _DOCUMENT_MARKDOWN_FENCE_RE = re.compile(
     r"\A```[ \t]*(?:md|markdown)[^\n]*\n(?P<body>.*?)(?:\n)?```[ \t]*\Z",
@@ -124,6 +124,21 @@ def _unwrap_document_markdown_fence(markdown_text: str) -> str:
     return str(match.group("body") or "").strip()
 
 
+_CODE_BLOCK_RE = re.compile(
+    r'<pre><code class="language-(\w+)">(.*?)</code></pre>',
+    re.DOTALL,
+)
+
+
+def _convert_code_blocks(html_text: str) -> str:
+    """Convert <pre><code> to <div class=\"code-stem\"> for client-side CodeMirror rendering."""
+    def _replace(m: re.Match) -> str:
+        lang = m.group(1)
+        code = html_lib.unescape(m.group(2))
+        return f'<div class="code-stem" data-lang="{lang}">{code}</div>'
+    return _CODE_BLOCK_RE.sub(_replace, html_text)
+
+
 def render_markdown_html(markdown_text: str) -> str:
     text = _unwrap_document_markdown_fence(markdown_text)
     if not text:
@@ -133,4 +148,5 @@ def render_markdown_html(markdown_text: str) -> str:
         extensions=_MARKDOWN_EXTENSIONS,
         output_format="html5",
     )
-    return sanitize_html(rendered)
+    safe = sanitize_html(rendered)
+    return _convert_code_blocks(safe)

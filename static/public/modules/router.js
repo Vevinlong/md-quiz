@@ -266,6 +266,24 @@ export function createPublicRouterModule() {
                 const val = (this.state?.assignment?.answers || {})[qid] || "";
                 CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap });
               });
+              // Initialize read-only stem code blocks
+              document.querySelectorAll(".code-stem").forEach((el) => {
+                if (el._cmView) return;
+                try {
+                  const lang = el.dataset.lang || "java";
+                  const val = el.textContent || "";
+                  // Clear raw text to prevent flash
+                  el.textContent = "";
+                  // Add mini toolbar
+                  const tb = document.createElement("div");
+                  tb.className = "stem-toolbar flex items-center gap-2 mb-2 flex-wrap";
+                  tb.innerHTML = '<span class="stem-toolbar--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">' + lang + '</span><span class="stem-toolbar--label text-[11px] text-slate-500">只读</span>';
+                  el.parentNode.insertBefore(tb, el);
+                  CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, readOnly: true, wrap: true });
+                } catch (e) {
+                  console.warn("[code-stem] CM init failed:", e.message);
+                }
+              });
             });
           }
           this.queueMathTypeset();

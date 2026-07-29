@@ -10,6 +10,7 @@ from backend.md_quiz.services.quiz_metadata import (
     build_quiz_metadata,
     compute_answer_time_total_seconds,
 )
+from backend.md_quiz.services.markdown_rendering import _convert_code_blocks
 from backend.md_quiz.services.support_deps import *
 from backend.md_quiz.services.validation_helpers import *
 
@@ -425,7 +426,7 @@ def _render_markdown_html(markdown_text: str) -> str:
     )
     for token, math_html in math_repls:
         rendered = rendered.replace(token, math_html)
-    return rendered
+    return _convert_code_blocks(rendered)
 
 
 def build_render_ready_question(question: dict[str, Any], *, include_rubric_html: bool = False) -> dict[str, Any]:

@@ -23,7 +23,7 @@ export function createPublicFullQuizModule() {
       this.reconfigureAllCodeThemes();
       // Also switch editor chrome (background/gutters) without rebuild
       if (typeof CodeMirrorBundle !== "undefined") {
-        document.querySelectorAll(".code-mount").forEach((el) => {
+        document.querySelectorAll(".code-mount, .code-stem").forEach((el) => {
           if (el._cmView) CodeMirrorBundle.reconfigureEditorChrome(el, next);
         });
       }
@@ -75,7 +75,7 @@ export function createPublicFullQuizModule() {
       localStorage.setItem("md-quiz-code-theme", theme);
       if (typeof CodeMirrorBundle === "undefined") return;
       this.$nextTick(() => {
-        document.querySelectorAll(".code-mount").forEach((el) => {
+        document.querySelectorAll(".code-mount, .code-stem").forEach((el) => {
           if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, theme);
         });
       });

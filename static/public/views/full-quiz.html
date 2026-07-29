@@ -28,6 +28,13 @@
   .full-quiz--light .full-quiz--toolbar-btn { color: #64748b; border-color: #e2e8f0; }
   .full-quiz--light .full-quiz--toolbar-btn:hover { color: #475569; border-color: #cbd5e1; }
   .full-quiz--light .full-quiz--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+  /* Stem code blocks */
+  .code-stem { margin-top: 0.75rem; margin-bottom: 0.75rem; overflow: hidden; border-radius: 0.5rem; }
+  .code-stem .cm-editor { border-radius: 0.5rem; }
+  .code-stem .cm-editor .cm-scroller { overflow: hidden !important; }
+  .code-stem .cm-editor, .code-stem .cm-content { min-height: 0 !important; height: auto !important; }
+  .full-quiz--light .stem-toolbar .stem-toolbar--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+  .full-quiz--light .stem-toolbar .stem-toolbar--label { color: #64748b; }
 </style>
 <section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)] gap-4 p-4"
   :class="pageTheme === 'light' ? 'full-quiz--light' : ''">
