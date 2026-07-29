@@ -5,8 +5,9 @@ import { java } from "@codemirror/lang-java";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { sql } from "@codemirror/lang-sql";
-import { lineNumbers } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { lineNumbers, keymap } from "@codemirror/view";
+import { HighlightStyle, syntaxHighlighting, indentUnit } from "@codemirror/language";
+import { indentWithTab } from "@codemirror/commands";
 import * as lz from "@lezer/highlight";
 
 // ── Theme cache (lazy — tags accessed at call time, not module-init time) ──
@@ -201,6 +202,8 @@ export function createCodeMirror(container, options = {}) {
     doc: value,
     extensions: [
       basicSetup,
+      keymap.of([indentWithTab]),
+      indentUnit.of("    "),
       langComp.of(LANG_MAP[lang]()),
       themeComp.of(syntaxTheme),
       wrapComp.of(wrap ? EditorView.lineWrapping : []),
