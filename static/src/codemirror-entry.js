@@ -214,7 +214,7 @@ export function createCodeMirror(container, options = {}) {
   const editorChrome = pageTheme === "light" ? lightEditorTheme : darkEditorTheme;
 
   const state = EditorState.create({
-    doc: value,
+    doc: String(value || ""),
     extensions: [
       basicSetup,
       indentUnit.of("    "),
