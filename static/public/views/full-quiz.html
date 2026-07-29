@@ -12,7 +12,7 @@
   .full-quiz--light .quiz-rich::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
   .full-quiz--light .quiz-rich::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
   .full-quiz--light .quiz-rich { scrollbar-color: rgba(0,0,0,0.15) transparent; }
-  .full-quiz--light .full-quiz--card { background: #fff; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--card { background: #f8fafc; border-color: #e2e8f0; }
   .full-quiz--light .full-quiz--card-text { color: #1e293b; }
   .full-quiz--light .full-quiz--stem { color: #334155; }
   .full-quiz--light .full-quiz--heading { color: #1e293b; border-color: #e2e8f0; }
@@ -20,7 +20,7 @@
   .full-quiz--light .full-quiz--opt:hover { background: #f1f5f9; border-color: #cbd5e1; }
   .full-quiz--light .full-quiz--opt-sel { color: #0f172a; background: #d9f99d30; border-color: #86efac; }
   .full-quiz--light .full-quiz--textarea { color: #1e293b; background: #f8fafc; border-color: #e2e8f0; }
-  .full-quiz--light .full-quiz--sidebar { background: rgba(255,255,255,0.8); border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--sidebar { background: rgba(255,255,255,0.9); border-color: #e2e8f0; box-shadow: 0 10px 25px rgba(100,116,139,0.1); }
   .full-quiz--light .full-quiz--sidebar-text { color: #64748b; }
   .full-quiz--light .full-quiz--sidebar-num { color: #475569; }
   .full-quiz--light .full-quiz--progress-text { color: #1e293b; }
@@ -29,10 +29,11 @@
   .full-quiz--light .full-quiz--toolbar-btn:hover { color: #475569; border-color: #cbd5e1; }
   .full-quiz--light .full-quiz--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 </style>
-<section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]"
-  :class="pageTheme === 'light' ? 'bg-white full-quiz--light' : ''">
-  <!-- ── Left: question index sidebar + status ── -->
-  <aside class="full-quiz--sidebar sticky top-0 flex h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 flex-col border-r border-white/10 bg-slate-900/80 backdrop-blur">
+<section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)] gap-4 p-4"
+  :class="pageTheme === 'light' ? 'full-quiz--light' : ''">
+  <!-- ── Left: question index sidebar card ── -->
+  <aside class="full-quiz--sidebar sticky top-0 flex h-full w-[220px] flex-shrink-0 flex-col rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur"
+    :class="pageTheme === 'light' ? 'border-slate-200 bg-white/90 shadow-lg shadow-slate-200/50' : 'border-white/10 bg-slate-900/80'">
     <!-- navigation -->
     <div class="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
@@ -72,8 +73,10 @@
     </div>
   </aside>
 
-  <!-- ── Right: questions ── -->
-  <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 no-scrollbar">
+  <!-- ── Right: questions card ── -->
+  <div class="flex-1 overflow-y-auto rounded-2xl border no-scrollbar"
+    :class="pageTheme === 'light' ? 'border-slate-200 bg-white/90 shadow-lg shadow-slate-200/50' : 'border-white/10 bg-slate-950/40'">
+    <div class="px-4 py-4 sm:px-6 sm:py-6">
     <div class="mx-auto max-w-3xl space-y-10">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div>
@@ -196,6 +199,7 @@
         </div>
       </template>
 
+    </div>
     </div>
   </div>
 

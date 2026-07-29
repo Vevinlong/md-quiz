@@ -14,7 +14,7 @@
   </head>
   <body x-data="publicApp()" x-init="init()"
     class="min-h-screen transition-colors"
-    :class="pageTheme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'">
+    :class="pageTheme === 'light' ? 'bg-transparent text-slate-900' : 'bg-slate-950 text-white'">
     <!-- Dark mode background -->
     <div class="pointer-events-none fixed inset-0 -z-20 overflow-hidden" x-show="pageTheme !== 'light'">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.2),transparent_32%),radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_28%),linear-gradient(180deg,#06131a_0%,#081018_35%,#06131a_100%)]"></div>
