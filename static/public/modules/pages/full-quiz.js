@@ -3,10 +3,55 @@ export function createPublicFullQuizModule() {
   const QUESTION_GROUPS = [
     { label: "选择题", types: ["single", "multiple"] },
     { label: "简答题", types: ["short"] },
+    { label: "编程题", types: ["code"] },
     { label: "量表题", types: ["traits"] },
   ];
 
   return {
+    // ── code editor settings ──
+
+    codeSettings: {
+      theme: localStorage.getItem("md-quiz-code-theme") || "one-dark",
+      wrap: localStorage.getItem("md-quiz-code-wrap") === "true",
+    },
+
+    codeLangs: {},
+
+    setCodeLang(qid, lang) {
+      if (!lang) return;
+      if (!this.codeLangs) this.codeLangs = {};
+      this.codeLangs[qid] = lang;
+      this.$nextTick(() => {
+        const el = document.querySelector(`.code-mount[data-qid="${qid}"]`);
+        if (el && typeof CodeMirrorBundle !== "undefined") {
+          CodeMirrorBundle.reconfigureLanguage(el, lang);
+        }
+      });
+    },
+
+    reconfigureAllCodeThemes() {
+      const theme = this.codeSettings?.theme || "one-dark";
+      localStorage.setItem("md-quiz-code-theme", theme);
+      if (typeof CodeMirrorBundle === "undefined") return;
+      this.$nextTick(() => {
+        document.querySelectorAll(".code-mount").forEach((el) => {
+          if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, theme);
+        });
+      });
+    },
+
+    toggleCodeWrap() {
+      const wrap = !this.codeSettings?.wrap;
+      this.codeSettings = { ...(this.codeSettings || {}), wrap };
+      localStorage.setItem("md-quiz-code-wrap", String(wrap));
+      if (typeof CodeMirrorBundle === "undefined") return;
+      document.querySelectorAll(".code-mount").forEach((el) => {
+        if (el._cmView) {
+          CodeMirrorBundle.reconfigureWrap(el, wrap);
+        }
+      });
+    },
+
     // ── question helpers ──
 
     allQuestions() {
@@ -65,7 +110,7 @@ export function createPublicFullQuizModule() {
     },
 
     questionTypeLabel(type) {
-      const map = { single: "单选", multiple: "多选", short: "简答", traits: "量表" };
+      const map = { single: "单选", multiple: "多选", short: "简答", code: "编程", traits: "量表" };
       return map[String(type || "").trim()] || type;
     },
 

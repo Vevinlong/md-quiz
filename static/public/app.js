@@ -1,4 +1,5 @@
 import { createPublicApiModule } from "./modules/api.js";
+import { createPublicCodeEditorModule } from "./modules/pages/code-editor.js";
 import { createPublicFullQuizModule } from "./modules/pages/full-quiz.js";
 import { createPublicQuizModule } from "./modules/quiz.js";
 import { createPublicResumeModule } from "./modules/resume.js";
@@ -12,6 +13,7 @@ const register = () => {
   window.Alpine.data("publicApp", () => ({
     ...createPublicState(),
     ...createPublicApiModule(),
+    ...createPublicCodeEditorModule(),
     ...createPublicViewLoaderModule(),
     ...createPublicRouterModule(),
     ...createPublicVerifyModule(),

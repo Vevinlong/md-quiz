@@ -254,6 +254,19 @@ export function createPublicRouterModule() {
           if (this.state.step === "verify") {
             this.focusOtpInput(0);
           }
+          if (this.viewCard === "full-quiz" && typeof CodeMirrorBundle !== "undefined") {
+            this.$nextTick(() => {
+              const theme = this.codeSettings?.theme || "one-dark";
+              const wrap = this.codeSettings?.wrap === true;
+              document.querySelectorAll(".code-mount").forEach((el) => {
+                if (el._cmView) return;
+                const qid = el.dataset.qid;
+                const lang = el.dataset.lang || "java";
+                const val = (this.state?.assignment?.answers || {})[qid] || "";
+                CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, themeName: theme, wrap: wrap });
+              });
+            });
+          }
           this.queueMathTypeset();
           this.syncBackGuardAfterRoute();
         },
