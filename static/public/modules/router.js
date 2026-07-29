@@ -258,12 +258,13 @@ export function createPublicRouterModule() {
             this.$nextTick(() => {
               const theme = this.codeSettings?.theme || "one-dark";
               const wrap = this.codeSettings?.wrap === true;
+              const pageTheme = this.pageTheme || "dark";
               document.querySelectorAll(".code-mount").forEach((el) => {
                 if (el._cmView) return;
                 const qid = el.dataset.qid;
                 const lang = el.dataset.lang || "java";
                 const val = (this.state?.assignment?.answers || {})[qid] || "";
-                CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, themeName: theme, wrap: wrap });
+                CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap });
               });
             });
           }

@@ -7,15 +7,37 @@
   .quiz-rich::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
   .quiz-rich::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
   .quiz-rich { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
+
+  /* ── Light mode overrides ── */
+  .full-quiz--light .quiz-rich::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+  .full-quiz--light .quiz-rich::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+  .full-quiz--light .quiz-rich { scrollbar-color: rgba(0,0,0,0.15) transparent; }
+  .full-quiz--light .full-quiz--card { background: #fff; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--card-text { color: #1e293b; }
+  .full-quiz--light .full-quiz--stem { color: #334155; }
+  .full-quiz--light .full-quiz--heading { color: #1e293b; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--opt { color: #334155; background: #f8fafc; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--opt:hover { background: #f1f5f9; border-color: #cbd5e1; }
+  .full-quiz--light .full-quiz--opt-sel { color: #0f172a; background: #d9f99d30; border-color: #86efac; }
+  .full-quiz--light .full-quiz--textarea { color: #1e293b; background: #f8fafc; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--sidebar { background: rgba(255,255,255,0.8); border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--sidebar-text { color: #64748b; }
+  .full-quiz--light .full-quiz--sidebar-num { color: #475569; }
+  .full-quiz--light .full-quiz--progress-text { color: #1e293b; }
+  .full-quiz--light .full-quiz--toolbar-select { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--toolbar-btn { color: #64748b; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--toolbar-btn:hover { color: #475569; border-color: #cbd5e1; }
+  .full-quiz--light .full-quiz--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 </style>
-<section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]">
+<section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)]"
+  :class="pageTheme === 'light' ? 'bg-white full-quiz--light' : ''">
   <!-- ── Left: question index sidebar + status ── -->
-  <aside class="sticky top-0 flex h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 flex-col border-r border-white/10 bg-slate-900/80 backdrop-blur">
+  <aside class="full-quiz--sidebar sticky top-0 flex h-[calc(100dvh-64px)] w-[220px] flex-shrink-0 flex-col border-r border-white/10 bg-slate-900/80 backdrop-blur">
     <!-- navigation -->
     <div class="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div class="mb-4">
-          <div class="mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label + '（' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></div>
+          <div class="full-quiz--sidebar-text mb-2 text-xs font-semibold text-slate-500" x-text="groupSectionLabel(gi) + '、' + group.label + '（' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></div>
           <div class="grid grid-cols-5 gap-1.5">
             <template x-for="(q, idx) in group.questions" :key="q.qid">
               <a
@@ -23,7 +45,7 @@
                 class="flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition mx-auto"
                 :class="questionStatus(q.qid) === 'answered'
                   ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                  : 'border-white/10 text-slate-400 hover:border-white/30 hover:text-slate-200'"
+                  : 'full-quiz--sidebar-num border-white/10 text-slate-400 hover:border-white/30 hover:text-slate-200'"
                 x-text="allQuestions().indexOf(q) + 1"
               ></a>
             </template>
@@ -40,7 +62,7 @@
       </div>
       <div class="flex flex-col items-center gap-1">
         <span class="text-[11px] font-medium text-slate-500">答题进度</span>
-        <span class="text-base font-bold text-slate-100" x-text="progressDisplay()"></span>
+        <span class="full-quiz--progress-text text-base font-bold text-slate-100" x-text="progressDisplay()"></span>
       </div>
       <button
         type="button"
@@ -56,22 +78,22 @@
       <template x-for="(group, gi) in questionGroups()" :key="group.label">
         <div>
           <!-- section header -->
-          <h2 class="mb-6 border-b border-white/10 pb-3 text-xl font-bold text-slate-100" x-text="groupSectionLabel(gi) + '、' + group.label + '（共' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></h2>
+          <h2 class="full-quiz--heading mb-6 border-b border-white/10 pb-3 text-xl font-bold text-slate-100" x-text="groupSectionLabel(gi) + '、' + group.label + '（共' + (group.questions?.length || 0) + '题，' + groupTotalPoints(group) + '分）'"></h2>
 
           <!-- questions in this group -->
           <div class="space-y-6">
             <template x-for="(question, idx) in group.questions" :key="question.qid">
-              <article :id="'q-' + (question.qid || '')" class="rounded-xl border border-white/10 bg-slate-950/58 px-5 py-5 sm:px-6 sm:py-6">
+              <article :id="'q-' + (question.qid || '')" class="full-quiz--card rounded-xl border border-white/10 bg-slate-950/58 px-5 py-5 sm:px-6 sm:py-6">
                 <!-- question header -->
                 <div class="mb-1 flex flex-wrap items-center gap-2">
                   <span class="text-sm font-bold text-slate-100/90" x-text="'Q' + (allQuestions().indexOf(question) + 1)"></span>
-                  <span class="rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400" x-text="questionTypeLabel(question.type)"></span>
+                  <span class="full-quiz--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400" x-text="questionTypeLabel(question.type)"></span>
                   <span class="text-[11px] text-slate-500" x-text="'(' + (question.points || question.max_points || 0) + '分)'"></span>
                   <span x-show="questionStatus(question.qid) === 'answered'" class="ml-auto text-xs text-emerald-400">已作答</span>
                 </div>
 
                 <!-- stem -->
-                <div class="quiz-rich public-rich min-w-0 overflow-x-auto text-sm leading-7 text-slate-100/92 [&_p]:m-0 [&_p]:leading-7" x-html="question.stem_html || ''"></div>
+                <div class="full-quiz--stem quiz-rich public-rich min-w-0 overflow-x-auto text-sm leading-7 text-slate-100/92 [&_p]:m-0 [&_p]:leading-7" x-html="question.stem_html || ''"></div>
 
                 <!-- single options -->
                 <div class="mt-5 space-y-2.5" x-show="question.type === 'single'">
@@ -80,13 +102,13 @@
                       type="button"
                       @click="selectSingleOption(question, option.key)"
                       class="flex w-full items-center gap-3 rounded-lg border px-4 py-3.5 text-left text-sm transition"
-                      :class="isSingleSelected(question, option.key) ? 'border-emerald-300/50 bg-emerald-400/10 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
+                      :class="isSingleSelected(question, option.key) ? 'full-quiz--opt-sel border-emerald-300/50 bg-emerald-400/10 text-white' : 'full-quiz--opt border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
                     >
                       <span
                         class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-[12px] leading-none font-semibold tracking-[0.08em]"
                         :class="isSingleSelected(question, option.key)
                           ? 'border-emerald-300/55 bg-emerald-300/18 text-emerald-100'
-                          : 'border-white/15 bg-white/5 text-slate-300'"
+                          : 'full-quiz--opt border-white/15 bg-white/5 text-slate-300'"
                       >
                         <span class="block leading-none" x-text="option.key"></span>
                       </span>
@@ -102,13 +124,13 @@
                       type="button"
                       @click="toggleMultipleOption(question, option.key)"
                       class="flex w-full items-center gap-3 rounded-lg border px-4 py-3.5 text-left text-sm transition"
-                      :class="isMultipleSelected(question, option.key) ? 'border-emerald-300/50 bg-emerald-400/10 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
+                      :class="isMultipleSelected(question, option.key) ? 'full-quiz--opt-sel border-emerald-300/50 bg-emerald-400/10 text-white' : 'full-quiz--opt border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/8'"
                     >
                       <span
                         class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-[12px] leading-none font-semibold tracking-[0.08em]"
                         :class="isMultipleSelected(question, option.key)
                           ? 'border-emerald-300/55 bg-emerald-300/18 text-emerald-100'
-                          : 'border-white/15 bg-white/5 text-slate-300'"
+                          : 'full-quiz--opt border-white/15 bg-white/5 text-slate-300'"
                       >
                         <span class="block leading-none" x-text="option.key"></span>
                       </span>
@@ -120,7 +142,7 @@
                 <!-- short answer -->
                 <div class="mt-5" x-show="question.type === 'short'">
                   <textarea
-                    class="w-full resize-y rounded-lg border border-white/10 bg-white/6 px-4 py-3 text-sm leading-6 text-slate-100 placeholder-slate-500 transition focus:border-emerald-400/40 focus:ring-1 focus:ring-emerald-400/20 focus:outline-none"
+                    class="full-quiz--textarea w-full resize-y rounded-lg border border-white/10 bg-white/6 px-4 py-3 text-sm leading-6 text-slate-100 placeholder-slate-500 transition focus:border-emerald-400/40 focus:ring-1 focus:ring-emerald-400/20 focus:outline-none"
                     rows="4"
                     :value="shortAnswerDraft(question.qid)"
                     @input="if (!state.assignment.answers) state.assignment.answers = {}; state.assignment.answers[question.qid] = $event.target.value; debounceSaveShort(question)"
@@ -134,7 +156,7 @@
                   <div class="mb-2 flex items-center gap-2 flex-wrap">
                     <!-- Language -->
                     <select
-                      class="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none"
+                      class="full-quiz--toolbar-select rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none"
                       :value="codeLangs[question.qid] || question.lang || 'java'"
                       @change="setCodeLang(question.qid, $event.target.value)"
                     >
@@ -145,23 +167,22 @@
                     </select>
 
                     <span class="text-[11px] text-slate-500">高亮配色</span>
-                    <!-- Theme -->
+                    <!-- Theme (dynamic per page theme) -->
                     <select
-                      class="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none"
+                      class="full-quiz--toolbar-select rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none"
                       x-model="codeSettings.theme"
                       @change="reconfigureAllCodeThemes()"
                     >
-                      <option value="one-dark">One Dark</option>
-                      <option value="monokai">Monokai</option>
-                      <option value="dracula">Dracula</option>
-                      <option value="nord">Nord</option>
+                      <template x-for="t in codeThemeOptions()" :key="t.id">
+                        <option :value="t.id" x-text="t.label"></option>
+                      </template>
                     </select>
 
                     <!-- Word wrap toggle -->
                     <button
                       type="button"
                       @click="toggleCodeWrap()"
-                      class="rounded-lg border px-2.5 py-1 text-xs transition"
+                      class="full-quiz--toolbar-btn rounded-lg border px-2.5 py-1 text-xs transition"
                       :class="codeSettings.wrap ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-400' : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-300'"
                     >
                       ↻ 自动换行
@@ -179,6 +200,25 @@
   </div>
 
 </section>
+
+  <!-- ── Right: theme toggle panel ── -->
+  <div
+    class="fixed right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-3 rounded-xl border bg-slate-900/90 p-3 shadow-lg backdrop-blur"
+    :class="pageTheme === 'light' ? 'border-slate-200 bg-white/90 shadow-slate-200/50' : 'border-white/10 bg-slate-900/90'"
+  >
+    <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">主题</span>
+    <button
+      type="button"
+      @click="togglePageTheme()"
+      class="flex h-10 w-10 items-center justify-center rounded-lg border transition"
+      :class="pageTheme === 'light'
+        ? 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
+        : 'border-white/10 bg-white/8 text-yellow-300 hover:bg-white/15'"
+      :title="pageTheme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'"
+    >
+      <span class="material-symbols-rounded text-xl" x-text="pageTheme === 'dark' ? 'light_mode' : 'dark_mode'"></span>
+    </button>
+  </div>
 
 <!-- ── submit confirmation modal ── -->
 <div

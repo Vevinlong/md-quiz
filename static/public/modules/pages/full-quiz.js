@@ -8,6 +8,41 @@ export function createPublicFullQuizModule() {
   ];
 
   return {
+    // ── page theme (dark / light) ──
+
+    pageTheme: localStorage.getItem("md-quiz-page-theme") || "dark",
+
+    togglePageTheme() {
+      const next = this.pageTheme === "dark" ? "light" : "dark";
+      this.pageTheme = next;
+      localStorage.setItem("md-quiz-page-theme", next);
+      // Reset syntax theme to default for this mode
+      this.codeSettings.theme = next === "light" ? "atom-one-light" : "one-dark";
+      localStorage.setItem("md-quiz-code-theme", this.codeSettings.theme);
+      // Recolor all editors
+      this.reconfigureAllCodeThemes();
+    },
+
+    codeThemeOptions() {
+      if (typeof CodeMirrorBundle !== "undefined" && CodeMirrorBundle.getThemeNames) {
+        return CodeMirrorBundle.getThemeNames(this.pageTheme || "dark");
+      }
+      if (this.pageTheme === "light") {
+        return [
+          { id: "atom-one-light", label: "Atom One Light" },
+          { id: "solarized-light", label: "Solarized Light" },
+          { id: "github-light", label: "GitHub Light" },
+          { id: "nord-light", label: "Nord Light" },
+        ];
+      }
+      return [
+        { id: "one-dark", label: "One Dark" },
+        { id: "monokai", label: "Monokai" },
+        { id: "dracula", label: "Dracula" },
+        { id: "nord", label: "Nord" },
+      ];
+    },
+
     // ── code editor settings ──
 
     codeSettings: {
