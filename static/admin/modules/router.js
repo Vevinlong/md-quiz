@@ -250,6 +250,21 @@ export function createAdminRouterModule() {
       await this.renderCurrentRoute();
       await this.$nextTick();
 
+      // Initialize CodeMirror on .code-stem blocks (quiz detail, attempt detail, etc.)
+      if (typeof CodeMirrorBundle !== "undefined") {
+        document.querySelectorAll(".code-stem").forEach((el) => {
+          if (el._cmView) return;
+          try {
+            const lang = el.dataset.lang || "java";
+            const val = el.textContent || "";
+            el.textContent = "";
+            CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, readOnly: true, wrap: true });
+          } catch (e) {
+            console.warn("[admin] code-stem init failed:", e.message);
+          }
+        });
+      }
+
       if (this.route.name !== "quizzes") {
         this.stopSyncPolling();
       }
