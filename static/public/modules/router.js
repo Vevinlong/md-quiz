@@ -265,7 +265,6 @@ export function createPublicRouterModule() {
                 const lang = el.dataset.lang || "java";
                 const val = (this.state?.assignment?.answers || {})[qid] || "";
                 const question = (this.state?.quiz?.spec?.questions || []).find(q => String(q.qid) === qid);
-                let saveTimer = null;
                 const self = this;
                 let saveTimer = null;
                 CodeMirrorBundle.createCodeMirror(el, {
