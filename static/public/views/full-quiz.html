@@ -35,6 +35,8 @@
   .code-stem .cm-editor, .code-stem .cm-content { min-height: 0 !important; height: auto !important; }
   .full-quiz--light .stem-toolbar .stem-toolbar--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
   .full-quiz--light .stem-toolbar .stem-toolbar--label { color: #64748b; }
+  /* Restore list styles killed by Tailwind reset */
+  /* list styles restored in public/index.html <head> — dynamic template <style> not applied */
 </style>
 <section x-show="viewCard === 'full-quiz'" class="flex h-[calc(100dvh-64px)] gap-4 p-4"
   :class="pageTheme === 'light' ? 'full-quiz--light' : ''">

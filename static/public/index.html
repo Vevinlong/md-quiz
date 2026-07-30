@@ -6,6 +6,14 @@
     <title>MD Quiz</title>
     <link href="/static/assets/css/material-symbols.css" rel="stylesheet" />
     <link href="/static/public.css" rel="stylesheet" />
+    <style>
+      /* Restore list styles via CSS counter (bypasses marker rendering issues) */
+      .quiz-rich ol { counter-reset: rich-ol; list-style: none; padding-left: 1.5em; margin: 0; }
+      .quiz-rich ol > li { counter-increment: rich-ol; list-style: none; margin-top: 0.25rem; }
+      .quiz-rich ol > li::before { content: counter(rich-ol) ". "; font-weight: 600; }
+      .quiz-rich ul { list-style: disc inside none; padding-left: 1.5em; margin: 0; }
+      .quiz-rich ul > li { margin-top: 0.25rem; }
+    </style>
     <script defer src="/static/assets/js/math-render.js"></script>
     <script defer src="/static/assets/js/vendor/mathjax/tex-svg.js"></script>
     <script defer src="/static/assets/js/vendor/codemirror/codemirror.min.js"></script>
