@@ -16,13 +16,18 @@
   .full-quiz--light .full-quiz--card-text { color: #1e293b; }
   .full-quiz--light .full-quiz--stem { color: #334155; }
   .full-quiz--light .full-quiz--heading { color: #1e293b; border-color: #e2e8f0; }
-  .full-quiz--light .full-quiz--opt { color: #334155; background: #f8fafc; border-color: #e2e8f0; }
-  .full-quiz--light .full-quiz--opt:hover { background: #f1f5f9; border-color: #cbd5e1; }
-  .full-quiz--light .full-quiz--opt-sel { color: #0f172a; background: #d9f99d30; border-color: #86efac; }
-  .full-quiz--light .full-quiz--textarea { color: #1e293b; background: #f8fafc; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--opt { color: #334155; background: #fff; border-color: #e2e8f0; }
+  .full-quiz--light .full-quiz--opt:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+  .full-quiz--light .full-quiz--opt-sel { color: inherit !important; background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
+  .full-quiz--light .full-quiz--opt-sel span { color: inherit !important; background: transparent !important; border-color: #cbd5e1 !important; }
+  .full-quiz--light .full-quiz--opt .quiz-rich { color: #334155 !important; }
+  .full-quiz--light .full-quiz--opt-sel .quiz-rich { color: #334155 !important; }
+  .full-quiz--light .full-quiz--textarea { color: #1e293b; background: #fff; border-color: #e2e8f0; }
   .full-quiz--light .full-quiz--sidebar { background: rgba(255,255,255,0.9); border-color: #e2e8f0; box-shadow: 0 10px 25px rgba(100,116,139,0.1); }
   .full-quiz--light .full-quiz--sidebar-text { color: #64748b; }
-  .full-quiz--light .full-quiz--sidebar-num { color: #475569; }
+  .full-quiz--light .full-quiz--sidebar-num { color: #475569; border-color: #cbd5e1; }
+  /* Inline code in stems/options */
+  .full-quiz--light .quiz-rich code { color: #1e293b; background: #e2e8f0; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.875em; }
   .full-quiz--light .full-quiz--progress-text { color: #1e293b; }
   .full-quiz--light .full-quiz--toolbar-select { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
   .full-quiz--light .full-quiz--toolbar-btn { color: #64748b; border-color: #e2e8f0; }
@@ -98,7 +103,7 @@
               <article :id="'q-' + (question.qid || '')" class="full-quiz--card rounded-xl border border-white/10 bg-slate-950/58 px-5 py-5 sm:px-6 sm:py-6">
                 <!-- question header -->
                 <div class="mb-1 flex flex-wrap items-center gap-2">
-                  <span class="text-sm font-bold text-slate-100/90" x-text="'Q' + (allQuestions().indexOf(question) + 1)"></span>
+                  <span class="full-quiz--card-text text-sm font-bold text-slate-100/90" x-text="'Q' + (allQuestions().indexOf(question) + 1)"></span>
                   <span class="full-quiz--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400" x-text="questionTypeLabel(question.type)"></span>
                   <span class="text-[11px] text-slate-500" x-text="'(' + (question.points || question.max_points || 0) + '分)'"></span>
                   <span x-show="questionStatus(question.qid) === 'answered'" class="ml-auto text-xs text-emerald-400">已作答</span>
