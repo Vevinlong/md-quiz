@@ -87,7 +87,7 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
             objective_details.append({"qid": qid, "score": scored, "max": max_points})
             continue
 
-        if qtype != "short":
+        if qtype not in ("short", "code"):
             continue
 
         normalized_answer = grading_short_answer._normalize_short_answer(answers.get(qid, ""))

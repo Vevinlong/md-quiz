@@ -5,7 +5,7 @@ from typing import Any
 
 QUIZ_SCHEMA_VERSION = 2
 QUIZ_FORMAT = "qml-v2"
-QUIZ_QUESTION_TYPES = ("single", "multiple", "short")
+QUIZ_QUESTION_TYPES = ("single", "multiple", "short", "code")
 
 
 def coerce_optional_int(raw: Any, *, strict: bool = False, field: str = "value") -> int | None:
