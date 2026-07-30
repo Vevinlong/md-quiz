@@ -335,7 +335,7 @@ def _build_review_answer_item(
         for option in options
         if bool(option.get("correct")) and str(option.get("key") or "").strip()
     ]
-    has_answer = bool(str(answer or "").strip()) if qtype == "short" else bool(selected_options)
+    has_answer = bool(str(answer or "").strip()) if qtype in ("short", "code") else bool(selected_options)
     is_correct: bool | None = None
     is_partial = False
     if review_kind == "objective" and has_answer:
