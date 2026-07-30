@@ -1049,17 +1049,26 @@ export function createAdminAssignmentsModule() {
       }
       await this.$nextTick();
       this.queueMathTypeset();
-      if (typeof CodeMirrorBundle !== "undefined") {
-        document.querySelectorAll(".code-stem, .code-answer").forEach((el) => {
-          if (el._cmView) return;
-          try {
-            const lang = el.dataset.lang || "java";
-            const val = el.textContent || "";
-            el.textContent = "";
-            CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
-          } catch (e) { /* ignore */ }
-        });
-      }
+      this.initCodeMirrorBlocks();
+    },
+
+    initCodeMirrorBlocks() {
+      if (typeof CodeMirrorBundle === "undefined") return;
+      document.querySelectorAll(".code-stem, .code-answer").forEach((el) => {
+        // Alpine 的 x-text 更新会摧毁 CodeMirror DOM，但 _cmView 残留，需要检测并重建
+        if (el._cmView) {
+          if (el.querySelector(".cm-editor")) return; // CM 仍存活，跳过
+          // CM DOM 已被 Alpine 摧毁，清理残留引用
+          try { el._cmView.destroy(); } catch (e) { /* ignore */ }
+          delete el._cmView;
+        }
+        try {
+          const lang = el.dataset.lang || "java";
+          const val = el.textContent || "";
+          el.textContent = "";
+          CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
+        } catch (e) { /* ignore */ }
+      });
     },
 
     // ---- 人工评分覆盖 ----
@@ -1130,13 +1139,26 @@ export function createAdminAssignmentsModule() {
           },
         );
         if (data?.review) {
-          this.attemptDetail = {
-            ...(this.attemptDetail || {}),
-            review: data.review,
-          };
+          // 就地更新而非替换整个 attemptDetail，避免 Alpine 全量重渲染摧毁 CodeMirror
+          const existingAnswers = this.attemptDetail?.review?.answers;
           const updatedQuestion = (data.review.answers || []).find(
             (a) => a.qid === qid,
           );
+          if (existingAnswers && updatedQuestion) {
+            const idx = existingAnswers.findIndex((a) => a.qid === qid);
+            if (idx >= 0) {
+              const target = existingAnswers[idx];
+              target.score = updatedQuestion.score;
+              target.score_display = updatedQuestion.score_display;
+              target.score_source = updatedQuestion.score_source;
+              target.reason = updatedQuestion.reason;
+              target.manual_override = updatedQuestion.manual_override;
+              target.has_score = updatedQuestion.has_score;
+            }
+            if (data.review.evaluation) {
+              this.attemptDetail.review.evaluation = data.review.evaluation;
+            }
+          }
           if (updatedQuestion) {
             this.gradingOverrides[qid] = {
               score: updatedQuestion?.score ?? "",

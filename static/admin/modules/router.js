@@ -250,10 +250,15 @@ export function createAdminRouterModule() {
       await this.renderCurrentRoute();
       await this.$nextTick();
 
-      // Initialize CodeMirror on .code-stem blocks (quiz detail, attempt detail, etc.)
+      // Initialize CodeMirror on .code-stem and .code-answer blocks (quiz detail, attempt detail, etc.)
       if (typeof CodeMirrorBundle !== "undefined") {
-        document.querySelectorAll(".code-stem").forEach((el) => {
-          if (el._cmView) return;
+        document.querySelectorAll(".code-stem, .code-answer").forEach((el) => {
+          // Alpine 的 x-text 更新会摧毁 CodeMirror DOM，但 _cmView 残留，需要检测并重建
+          if (el._cmView) {
+            if (el.querySelector(".cm-editor")) return;
+            try { el._cmView.destroy(); } catch (e) { /* ignore */ }
+            delete el._cmView;
+          }
           try {
             const lang = el.dataset.lang || "java";
             const val = el.textContent || "";
@@ -261,7 +266,7 @@ export function createAdminRouterModule() {
             // Admin pages are light-themed, use light defaults
             CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
           } catch (e) {
-            console.warn("[admin] code-stem init failed:", e.message);
+            console.warn("[admin] code-block init failed:", e.message);
           }
         });
       }
