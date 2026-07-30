@@ -86,7 +86,7 @@ assignmentForm: {
   quiz_keys: [],
   candidate_id: "",
   invite_start_date: todayYmd,
-  invite_end_date: tomorrowYmd,
+  invite_end_date: todayYmd,
   require_phone_verification: false,
   ignore_timing: false,
 },
