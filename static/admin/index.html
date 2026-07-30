@@ -10,6 +10,11 @@
     <style>
       .code-stem { margin: 0.75rem 0; overflow: hidden; border-radius: 0.5rem; }
       .code-stem .cm-editor, .code-stem .cm-content { min-height: 0 !important; height: auto !important; }
+      .quiz-rich ol { counter-reset: rich-ol; list-style: none; padding-left: 1.5em; margin: 0; }
+      .quiz-rich ol > li { counter-increment: rich-ol; list-style: none; margin-top: 0.25rem; }
+      .quiz-rich ol > li::before { content: counter(rich-ol) ". "; font-weight: 600; }
+      .quiz-rich ul { list-style: disc inside none; padding-left: 1.5em; margin: 0; }
+      .quiz-rich ul > li { margin-top: 0.25rem; }
     </style>
     <script defer src="/static/assets/js/math-render.js"></script>
     <script defer src="/static/assets/js/vendor/mathjax/tex-svg.js"></script>
