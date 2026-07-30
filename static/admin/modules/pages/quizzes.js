@@ -250,6 +250,7 @@ export function createAdminQuizzesModule() {
       this.quizDetail = await this.api(`/api/admin/quizzes/${encodeURIComponent(quizKey)}`);
       await this.$nextTick();
       this.queueMathTypeset();
+      this.initStemCodeBlocks();
     },
 
     async loadQuizVersion(versionId) {
@@ -259,6 +260,22 @@ export function createAdminQuizzesModule() {
       }
       await this.$nextTick();
       this.queueMathTypeset();
+      this.initStemCodeBlocks();
+    },
+
+    initStemCodeBlocks() {
+      if (typeof CodeMirrorBundle === "undefined") return;
+      document.querySelectorAll(".code-stem").forEach((el) => {
+        if (el._cmView) return;
+        try {
+          const lang = el.dataset.lang || "java";
+          const val = el.textContent || "";
+          el.textContent = "";
+          CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
+        } catch (e) {
+          console.warn("[quiz-detail] code-stem init failed:", e.message);
+        }
+      });
     },
 
     async togglePublicInvite() {
