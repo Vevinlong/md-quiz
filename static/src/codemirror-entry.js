@@ -202,7 +202,7 @@ const lightEditorTheme = EditorView.theme({
 // ── Create editor ──
 
 export function createCodeMirror(container, options = {}) {
-  const { value = "", lang = "java", pageTheme = "dark", themeName = "one-dark", readOnly = false, wrap = false } = options;
+  const { value = "", lang = "java", pageTheme = "dark", themeName = "one-dark", readOnly = false, wrap = false, onChange = null } = options;
 
   const langComp = new Compartment();
   const themeComp = new Compartment();
@@ -225,7 +225,11 @@ export function createCodeMirror(container, options = {}) {
       wrapComp.of(wrap ? EditorView.lineWrapping : []),
       chromeComp.of(editorChrome),
       EditorView.updateListener.of((update) => {
-        if (update.changes) container._cmValue = update.state.doc.toString();
+        if (update.changes) {
+          const v = update.state.doc.toString();
+          container._cmValue = v;
+          if (typeof onChange === "function") onChange(v);
+        }
       }),
       ...(readOnly ? [EditorView.editable.of(false)] : []),
     ],

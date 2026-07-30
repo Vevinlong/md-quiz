@@ -252,6 +252,7 @@ export function createPublicFullQuizModule() {
     },
 
     _shortTimers: {},
+    _codeTimers: {},
 
     debounceSaveShort(question) {
       const qid = String(question.qid || "");
@@ -264,6 +265,22 @@ export function createPublicFullQuizModule() {
           this.saveAnswer(question, value);
         }
       }, 1500);
+    },
+
+    debounceSaveCode(question) {
+      const qid = String(question.qid || "");
+      if (!qid) return;
+      if (this._codeTimers[qid]) window.clearTimeout(this._codeTimers[qid]);
+      this._codeTimers[qid] = window.setTimeout(() => {
+        delete this._codeTimers[qid];
+        const el = document.querySelector(`.code-mount[data-qid="${qid}"]`);
+        const value = (el && typeof CodeMirrorBundle !== "undefined") ? CodeMirrorBundle.getCodeMirrorValue(el) : "";
+        if (!this.state.assignment.answers) this.state.assignment.answers = {};
+        this.state.assignment.answers[qid] = value;
+        if (value.trim()) {
+          this.saveAnswer(question, value);
+        }
+      }, 2000);
     },
 
     // ── submit ──

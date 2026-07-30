@@ -264,7 +264,20 @@ export function createPublicRouterModule() {
                 const qid = el.dataset.qid;
                 const lang = el.dataset.lang || "java";
                 const val = (this.state?.assignment?.answers || {})[qid] || "";
-                CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap });
+                const question = (this.state?.quiz?.spec?.questions || []).find(q => String(q.qid) === qid);
+                let saveTimer = null;
+                CodeMirrorBundle.createCodeMirror(el, {
+                  value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap,
+                  onChange(v) {
+                    if (!this.state.assignment.answers) this.state.assignment.answers = {};
+                    this.state.assignment.answers[qid] = v;
+                    if (saveTimer) clearTimeout(saveTimer);
+                    const self = this;
+                    saveTimer = setTimeout(() => {
+                      if (v.trim() && question) self.saveAnswer(question, v);
+                    }, 2000);
+                  }.bind(this),
+                });
               });
               // Initialize read-only stem code blocks
               document.querySelectorAll(".code-stem").forEach((el) => {
