@@ -23,15 +23,15 @@
   </head>
   <body x-data="publicApp()" x-init="init()"
     class="min-h-screen transition-colors"
-    :class="pageTheme === 'light' ? 'bg-transparent text-slate-900' : 'bg-slate-950 text-white'">
+    :class="(viewCard === 'full-quiz' && pageTheme === 'light') ? 'bg-transparent text-slate-900' : 'bg-slate-950 text-white'">
     <!-- Dark mode background -->
-    <div class="pointer-events-none fixed inset-0 -z-20 overflow-hidden" x-show="pageTheme !== 'light'">
+    <div class="pointer-events-none fixed inset-0 -z-20 overflow-hidden" x-show="viewCard !== 'full-quiz' || pageTheme !== 'light'">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.2),transparent_32%),radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_28%),linear-gradient(180deg,#06131a_0%,#081018_35%,#06131a_100%)]"></div>
       <div class="absolute left-[8%] top-[12%] h-64 w-64 rounded-full bg-emerald-400/12 blur-3xl"></div>
       <div class="absolute bottom-[10%] right-[10%] h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl"></div>
     </div>
-    <!-- Light mode background -->
-    <div class="pointer-events-none fixed inset-0 -z-20 overflow-hidden" x-show="pageTheme === 'light'">
+    <!-- Light mode background (full-quiz only) -->
+    <div class="pointer-events-none fixed inset-0 -z-20 overflow-hidden" x-show="viewCard === 'full-quiz' && pageTheme === 'light'">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.1),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_50%,#f8fafc_100%)]"></div>
       <div class="absolute -left-28 top-0 h-72 w-72 rounded-full bg-blue-500/18 blur-3xl"></div>
       <div class="absolute right-0 top-12 h-80 w-80 rounded-full bg-emerald-500/16 blur-3xl"></div>
