@@ -258,7 +258,8 @@ export function createAdminRouterModule() {
             const lang = el.dataset.lang || "java";
             const val = el.textContent || "";
             el.textContent = "";
-            CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, readOnly: true, wrap: true });
+            // Admin pages are light-themed, use light defaults
+            CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
           } catch (e) {
             console.warn("[admin] code-stem init failed:", e.message);
           }

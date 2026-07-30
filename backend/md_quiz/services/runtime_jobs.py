@@ -683,6 +683,17 @@ def _augment_archive_with_spec(archive: dict) -> dict:
                 ]
         if not q.get("stem_md") and full_q.get("stem_md"):
             q["stem_md"] = full_q.get("stem_md")
+        # Render stem_html for code blocks (light mode, admin pages)
+        stem_md = q.get("stem_md")
+        if stem_md and not q.get("stem_html"):
+            q["stem_html"] = _render_markdown_html(str(stem_md))
+        rubric_md = q.get("rubric")
+        if rubric_md and not q.get("rubric_html"):
+            q["rubric_html"] = _render_markdown_html(str(rubric_md))
+        # Also render option text_html
+        for o in (q.get("options") or []):
+            if isinstance(o, dict) and o.get("text") and not o.get("text_html"):
+                o["text_html"] = _render_markdown_html(str(o.get("text")))
     return archive
 
 
