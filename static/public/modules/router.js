@@ -272,14 +272,50 @@ export function createPublicRouterModule() {
                 try {
                   const lang = el.dataset.lang || "java";
                   const val = el.textContent || "";
-                  // Clear raw text to prevent flash
+                  const id = this._nextStemId();
+                  el.dataset.stemId = id;
                   el.textContent = "";
-                  // Add mini toolbar
+
+                  const stTheme = this.getStemTheme(id);
+                  const stWrap = this.getStemWrap(id);
+                  const themeNames = CodeMirrorBundle.getThemeNames(pageTheme);
+                  const selectHtml = themeNames.map(t =>
+                    '<option value="' + t.id + '"' + (t.id === stTheme ? ' selected' : '') + '>' + t.label + '</option>'
+                  ).join("");
+
+                  // Build full toolbar (same structure as answer editor)
                   const tb = document.createElement("div");
                   tb.className = "stem-toolbar flex items-center gap-2 mb-2 flex-wrap";
-                  tb.innerHTML = '<span class="stem-toolbar--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">' + lang + '</span><span class="stem-toolbar--label text-[11px] text-slate-500">只读</span>';
+                  tb.innerHTML =
+                    '<span class="stem-toolbar--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">' + lang + '</span>' +
+                    '<span class="text-[11px] text-slate-500">高亮配色</span>' +
+                    '<select class="full-quiz--toolbar-select rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none">' + selectHtml + '</select>' +
+                    '<button type="button" class="full-quiz--toolbar-btn rounded-lg border px-2.5 py-1 text-xs transition' +
+                    (stWrap ? ' border-emerald-400/40 bg-emerald-400/10 text-emerald-400' : ' border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-300') + '">↻ 自动换行</button>';
                   el.parentNode.insertBefore(tb, el);
-                  CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, readOnly: true, wrap: true });
+
+                  const thSel = tb.querySelector("select");
+                  const wrapBtn = tb.querySelector("button");
+
+                  CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: stTheme, readOnly: true, wrap: stWrap });
+
+                  thSel.addEventListener("change", () => {
+                    this.setStemTheme(id, thSel.value);
+                    if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, thSel.value);
+                  });
+
+                  wrapBtn.addEventListener("click", () => {
+                    const on = !this.getStemWrap(id);
+                    this.setStemWrap(id, on);
+                    if (el._cmView) CodeMirrorBundle.reconfigureWrap(el, on);
+                    if (on) {
+                      wrapBtn.classList.add("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
+                      wrapBtn.classList.remove("text-slate-400", "hover:text-slate-300");
+                    } else {
+                      wrapBtn.classList.remove("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
+                      wrapBtn.classList.add("text-slate-400", "hover:text-slate-300");
+                    }
+                  });
                 } catch (e) {
                   console.warn("[code-stem] CM init failed:", e.message);
                 }

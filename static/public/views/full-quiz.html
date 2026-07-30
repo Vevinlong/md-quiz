@@ -36,10 +36,19 @@
   /* Stem code blocks */
   .code-stem { margin-top: 0.75rem; margin-bottom: 0.75rem; overflow: hidden; border-radius: 0.5rem; }
   .code-stem .cm-editor { border-radius: 0.5rem; }
-  .code-stem .cm-editor .cm-scroller { overflow: hidden !important; }
+  .code-stem .cm-editor .cm-scroller::-webkit-scrollbar { height: 6px; }
+  .code-stem .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  .full-quiz--light .code-stem .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+  .code-mount .cm-editor .cm-scroller::-webkit-scrollbar { height: 6px; }
+  .code-mount .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  .full-quiz--light .code-mount .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
   .code-stem .cm-editor, .code-stem .cm-content { min-height: 0 !important; height: auto !important; }
   .full-quiz--light .stem-toolbar .stem-toolbar--badge { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
   .full-quiz--light .stem-toolbar .stem-toolbar--label { color: #64748b; }
+  /* Answer editor scrollbar — same as stem */
+  .code-mount .cm-editor .cm-scroller::-webkit-scrollbar { height: 6px; }
+  .code-mount .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  .full-quiz--light .code-mount .cm-editor .cm-scroller::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
   /* Restore list styles killed by Tailwind reset */
   /* list styles restored in public/index.html <head> — dynamic template <style> not applied */
 </style>

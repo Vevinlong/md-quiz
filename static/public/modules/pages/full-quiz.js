@@ -12,16 +12,38 @@ export function createPublicFullQuizModule() {
 
     pageTheme: localStorage.getItem("md-quiz-page-theme") || "dark",
 
+    // Per-stem editor state: { "stem-0": { theme: "...", wrap: true }, ... }
+    _stemState: {},
+
+    _nextStemId() { const n = (this._stemState._n || 0); this._stemState._n = n + 1; return "s" + n; },
+    getStemTheme(id) { return this._stemState[id]?.theme || this.codeSettings.theme; },
+    setStemTheme(id, t) { this._stemState[id] = { ...this._stemState[id], theme: t }; },
+    getStemWrap(id)  { const s = this._stemState[id]; return s ? s.wrap : this.codeSettings.wrap; },
+    setStemWrap(id, w) { this._stemState[id] = { ...this._stemState[id], wrap: w }; },
+
+    refreshStemToolbars() {
+      if (typeof CodeMirrorBundle === "undefined") return;
+      const pt = this.pageTheme || "dark";
+      const themes = CodeMirrorBundle.getThemeNames(pt);
+      document.querySelectorAll(".stem-toolbar select").forEach(sel => {
+        sel.innerHTML = themes.map(t => `<option value="${t.id}">${t.label}</option>`).join("");
+        const first = themes[0].id;
+        sel.value = first;
+        // toolbar is sibling of .code-stem, not parent
+        const stemEl = sel.closest(".stem-toolbar")?.nextElementSibling;
+        const id = stemEl?.dataset?.stemId;
+        if (id) this.setStemTheme(id, first);
+        if (stemEl?._cmView) CodeMirrorBundle.reconfigureTheme(stemEl, first);
+      });
+    },
+
     togglePageTheme() {
       const next = this.pageTheme === "dark" ? "light" : "dark";
       this.pageTheme = next;
       localStorage.setItem("md-quiz-page-theme", next);
-      // Reset syntax theme to default for this mode
       this.codeSettings.theme = next === "light" ? "atom-one-light" : "one-dark";
-      localStorage.setItem("md-quiz-code-theme", this.codeSettings.theme);
-      // Recolor all editors
       this.reconfigureAllCodeThemes();
-      // Also switch editor chrome (background/gutters) without rebuild
+      this.refreshStemToolbars();
       if (typeof CodeMirrorBundle !== "undefined") {
         document.querySelectorAll(".code-mount, .code-stem").forEach((el) => {
           if (el._cmView) CodeMirrorBundle.reconfigureEditorChrome(el, next);
@@ -75,7 +97,7 @@ export function createPublicFullQuizModule() {
       localStorage.setItem("md-quiz-code-theme", theme);
       if (typeof CodeMirrorBundle === "undefined") return;
       this.$nextTick(() => {
-        document.querySelectorAll(".code-mount, .code-stem").forEach((el) => {
+        document.querySelectorAll(".code-mount").forEach((el) => {
           if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, theme);
         });
       });
