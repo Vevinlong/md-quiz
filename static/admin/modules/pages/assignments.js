@@ -229,6 +229,9 @@ export function createAdminAssignmentsModule() {
         return explicit;
       }
       const type = String(question?.type || "").trim().toLowerCase();
+      if (type === "code") {
+        return "code";
+      }
       if (type === "short") {
         return "short";
       }
@@ -242,6 +245,14 @@ export function createAdminAssignmentsModule() {
 
     attemptReviewIsShortQuestion(question) {
       return this.attemptReviewQuestionKind(question) === "short";
+    },
+
+    attemptReviewIsCodeQuestion(question) {
+      return this.attemptReviewQuestionKind(question) === "code";
+    },
+
+    codeAnswerLang(question) {
+      return String(question?.lang || "java").trim().toLowerCase();
     },
 
     attemptReviewIsTraitQuestion(question) {
@@ -1039,7 +1050,7 @@ export function createAdminAssignmentsModule() {
       await this.$nextTick();
       this.queueMathTypeset();
       if (typeof CodeMirrorBundle !== "undefined") {
-        document.querySelectorAll(".code-stem").forEach((el) => {
+        document.querySelectorAll(".code-stem, .code-answer").forEach((el) => {
           if (el._cmView) return;
           try {
             const lang = el.dataset.lang || "java";

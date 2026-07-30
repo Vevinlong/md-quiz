@@ -146,8 +146,23 @@
                         </div>
                       </template>
 
+                      <template x-if="attemptReviewIsCodeQuestion(question)">
+                        <div class="mt-3 grid gap-3">
+                          <div class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/85">
+                            <div class="border-b border-slate-200 px-3.5 py-2 text-[12px] font-semibold text-slate-500">候选人作答</div>
+                            <div class="px-3.5 py-3">
+                              <div class="code-answer rounded-lg" :data-lang="codeAnswerLang(question)" x-text="attemptReviewShortAnswerText(question)"></div>
+                            </div>
+                          </div>
+                          <div x-show="question.reason" class="overflow-hidden rounded-xl border border-blue-100 bg-blue-50/55">
+                            <div class="border-b border-blue-100 px-3.5 py-2 text-[12px] font-semibold text-blue-700">评分理由</div>
+                            <div class="whitespace-pre-wrap px-3.5 py-3 text-sm leading-6 text-slate-700" x-text="question.reason"></div>
+                          </div>
+                        </div>
+                      </template>
+
                       <div
-                        x-show="!attemptReviewIsShortQuestion(question) && question.reason"
+                        x-show="!attemptReviewIsShortQuestion(question) && !attemptReviewIsCodeQuestion(question) && question.reason"
                         class="mt-3 overflow-hidden rounded-xl border border-blue-100 bg-blue-50/55"
                       >
                         <div class="border-b border-blue-100 px-3.5 py-2 text-[12px] font-semibold text-blue-700">评分理由</div>
