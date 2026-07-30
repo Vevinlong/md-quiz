@@ -1038,6 +1038,17 @@ export function createAdminAssignmentsModule() {
       }
       await this.$nextTick();
       this.queueMathTypeset();
+      if (typeof CodeMirrorBundle !== "undefined") {
+        document.querySelectorAll(".code-stem").forEach((el) => {
+          if (el._cmView) return;
+          try {
+            const lang = el.dataset.lang || "java";
+            const val = el.textContent || "";
+            el.textContent = "";
+            CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: "light", themeName: "atom-one-light", readOnly: true, wrap: true });
+          } catch (e) { /* ignore */ }
+        });
+      }
     },
 
     // ---- 人工评分覆盖 ----
