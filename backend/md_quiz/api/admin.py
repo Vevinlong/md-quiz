@@ -777,7 +777,7 @@ def _serialize_exam_detail(
             "question_counts": dict(quiz_metadata["question_counts"]),
             "estimated_duration_minutes": int(quiz_metadata["estimated_duration_minutes"]),
             "trait": dict(quiz_metadata["trait"]),
-            "spec": spec if isinstance(spec, dict) else {},
+            "spec": exam_helpers.build_render_ready_public_spec(spec, include_rubric_html=True) if isinstance(spec, dict) else {},
         },
         "quiz_version_history": versions,
         "stats": stats,
