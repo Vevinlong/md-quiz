@@ -281,6 +281,8 @@ def _review_question_kind(question_type: str, options: list[dict[str, Any]]) -> 
     qtype = str(question_type or "").strip().lower()
     if qtype == "short":
         return "short"
+    if qtype == "code":
+        return "code"
     if qtype in {"single", "multiple"} and _has_trait_options(options):
         return "traits"
     if qtype in {"single", "multiple"}:
@@ -297,6 +299,7 @@ def _build_review_answer_item(
 ) -> dict[str, Any]:
     qid = str(raw_question.get("qid") or (spec_question or {}).get("qid") or "").strip()
     qtype = str(raw_question.get("type") or (spec_question or {}).get("type") or (public_question or {}).get("type") or "").strip()
+    lang = str(raw_question.get("lang") or (spec_question or {}).get("lang") or (public_question or {}).get("lang") or "").strip().lower()
     options = _normalize_review_options(raw_question.get("options"), spec_question=spec_question)
     review_kind = _review_question_kind(qtype, options)
     score = _coerce_int_or_none(raw_question.get("score"))
@@ -371,6 +374,7 @@ def _build_review_answer_item(
         "qid": qid,
         "label": raw_question.get("label") or (spec_question or {}).get("label") or (public_question or {}).get("label") or qid,
         "type": qtype,
+        "lang": lang,
         "review_kind": review_kind,
         "is_trait_question": review_kind == "traits",
         "max_points": max_points,
