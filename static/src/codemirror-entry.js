@@ -1,6 +1,7 @@
 // CodeMirror bundle for md-quiz code editor
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState, Compartment } from "@codemirror/state";
+import { cpp } from "@codemirror/lang-cpp";
 import { java } from "@codemirror/lang-java";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
@@ -11,6 +12,7 @@ import { indentWithTab } from "@codemirror/commands";
 import * as lz from "@lezer/highlight";
 
 const LANG_MAP = {
+  cpp,
   java, python,
   js: javascript,
   javascript,
