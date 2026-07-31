@@ -183,44 +183,45 @@ export function getThemeNames(pageTheme) {
   return pageTheme === "light" ? light : dark;
 }
 
-// ── Editor chrome themes ──
+// ── Editor chrome theme factory ──
 
-const darkEditorTheme = EditorView.theme({
-  "&": {
-    minHeight: "600px", backgroundColor: "#0f172a", color: "#e2e8f0",
-  },
-  ".cm-scroller": {
-    overflow: "auto", fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace", fontSize: "13px", lineHeight: "1.6",
-  },
-  ".cm-content": { minHeight: "600px", caretColor: "#22c55e", padding: "8px 0" },
-  ".cm-gutters": { backgroundColor: "#0f172a", borderRight: "1px solid rgba(255,255,255,0.08)", color: "#475569" },
-  ".cm-activeLineGutter": { backgroundColor: "rgba(34,197,94,0.08)" },
-  ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.03)" },
-  ".cm-cursor": { borderLeftColor: "#22c55e" },
-  ".cm-selectionBackground": { backgroundColor: "rgba(100,116,139,0.3)" },
-  "&.cm-focused .cm-selectionBackground": { backgroundColor: "rgba(100,116,139,0.42)" },
-}, { dark: true });
-
-const lightEditorTheme = EditorView.theme({
-  "&": {
-    minHeight: "600px", backgroundColor: "#fafbfc", color: "#24292e",
-  },
-  ".cm-scroller": {
-    overflow: "auto", fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace", fontSize: "13px", lineHeight: "1.6",
-  },
-  ".cm-content": { minHeight: "600px", caretColor: "#24292e", padding: "8px 0" },
-  ".cm-gutters": { backgroundColor: "#f6f8fa", borderRight: "1px solid #e1e4e8", color: "#959da5" },
-  ".cm-activeLineGutter": { backgroundColor: "rgba(3,102,214,0.06)" },
-  ".cm-activeLine": { backgroundColor: "rgba(0,0,0,0.03)" },
-  ".cm-cursor": { borderLeftColor: "#24292e" },
-  ".cm-selectionBackground": { backgroundColor: "rgba(3,102,214,0.15)" },
-  "&.cm-focused .cm-selectionBackground": { backgroundColor: "rgba(3,102,214,0.22)" },
-}, { dark: false });
+function _editorChrome(pageTheme, minHeight) {
+  const isLight = pageTheme === "light";
+  return EditorView.theme({
+    "&": {
+      minHeight, backgroundColor: isLight ? "#fafbfc" : "#0f172a", color: isLight ? "#24292e" : "#e2e8f0",
+    },
+    ".cm-scroller": {
+      overflow: "auto", fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace", fontSize: "13px", lineHeight: "1.6",
+    },
+    ".cm-content": {
+      minHeight, caretColor: isLight ? "#24292e" : "#22c55e", padding: "8px 0",
+    },
+    ".cm-gutters": {
+      backgroundColor: isLight ? "#f6f8fa" : "#0f172a",
+      borderRight: isLight ? "1px solid #e1e4e8" : "1px solid rgba(255,255,255,0.08)",
+      color: isLight ? "#959da5" : "#475569",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: isLight ? "rgba(3,102,214,0.06)" : "rgba(34,197,94,0.08)",
+    },
+    ".cm-activeLine": {
+      backgroundColor: isLight ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.03)",
+    },
+    ".cm-cursor": { borderLeftColor: isLight ? "#24292e" : "#22c55e" },
+    ".cm-selectionBackground": {
+      backgroundColor: isLight ? "rgba(3,102,214,0.15)" : "rgba(100,116,139,0.3)",
+    },
+    "&.cm-focused .cm-selectionBackground": {
+      backgroundColor: isLight ? "rgba(3,102,214,0.22)" : "rgba(100,116,139,0.42)",
+    },
+  }, { dark: !isLight });
+}
 
 // ── Create editor ──
 
 export function createCodeMirror(container, options = {}) {
-  const { value = "", lang = "java", pageTheme = "dark", themeName = "one-dark", readOnly = false, wrap = false, onChange = null } = options;
+  const { value = "", lang = "java", pageTheme = "dark", themeName = "one-dark", readOnly = false, wrap = false, onChange = null, minHeight = "600px" } = options;
 
   const langComp = new Compartment();
   const themeComp = new Compartment();
@@ -230,7 +231,7 @@ export function createCodeMirror(container, options = {}) {
   container._cmCompartments = { langComp, themeComp, wrapComp, chromeComp };
 
   const syntaxTheme = getTheme(themeName);
-  const editorChrome = pageTheme === "light" ? lightEditorTheme : darkEditorTheme;
+  const editorChrome = _editorChrome(pageTheme, minHeight);
 
   const state = EditorState.create({
     doc: String(value || ""),
@@ -256,6 +257,7 @@ export function createCodeMirror(container, options = {}) {
   const view = new EditorView({ state, parent: container });
   container._cmView = view;
   container._cmValue = value;
+  container._cmMinHeight = minHeight;
   return view;
 }
 
@@ -279,7 +281,8 @@ export function reconfigureTheme(el, themeName) {
 export function reconfigureEditorChrome(el, pageTheme) {
   const view = el._cmView, comps = el._cmCompartments;
   if (!view || !comps) return;
-  const chrome = pageTheme === "light" ? lightEditorTheme : darkEditorTheme;
+  const curMinHeight = el._cmMinHeight || "600px";
+  const chrome = _editorChrome(pageTheme, curMinHeight);
   view.dispatch({ effects: comps.chromeComp.reconfigure(chrome) });
 }
 

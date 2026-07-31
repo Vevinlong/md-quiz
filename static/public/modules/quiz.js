@@ -176,17 +176,17 @@ export function createPublicQuizModule() {
           },
 
           deferredSaveText(question = this.currentQuestion()) {
-            if (!question) return “”;
-            if (question.type === “short”) {
-              return this.isLastQuestion() ? “简答题在点击”完成并提交”后保存” : “简答题在点击”完成本题”后保存”;
+            if (!question) return "";
+            if (question.type === "short") {
+              return this.isLastQuestion() ? "简答题在点击“完成并提交”后保存" : "简答题在点击“完成本题”后保存";
             }
-            if (question.type === “multiple”) {
-              return this.isLastQuestion() ? “多选题在点击”提交测验”后保存” : “多选题在点击”下一题”后保存”;
+            if (question.type === "multiple") {
+              return this.isLastQuestion() ? "多选题在点击“提交测验”后保存" : "多选题在点击“下一题”后保存";
             }
-            if (question.type === “code”) {
-              return this.isLastQuestion() ? “代码题在点击”完成并提交”后保存” : “代码题在点击”下一题”后保存”;
+            if (question.type === "code") {
+              return this.isLastQuestion() ? "代码题在点击“完成并提交”后保存" : "代码题在点击“下一题”后保存";
             }
-            return “”;
+            return "";
           },
 
           questionProgressPercent() {

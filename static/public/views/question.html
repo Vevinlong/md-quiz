@@ -1,6 +1,14 @@
+<style>
+  /* Linear mode: CodeMirror auto-height (overrides 600px default from JS theme) */
+  .linear-quiz-view .code-mount .cm-editor,
+  .linear-quiz-view .code-mount .cm-content { min-height: 0 !important; height: auto !important; }
+  .linear-quiz-view .code-mount .cm-editor { min-height: 160px !important; }
+  .linear-quiz-view .code-stem .cm-editor,
+  .linear-quiz-view .code-stem .cm-content { min-height: 0 !important; height: auto !important; }
+</style>
 <section
               x-show="viewCard === 'question'"
-              class="mx-auto max-w-4xl space-y-6 py-2 sm:py-4"
+              class="linear-quiz-view mx-auto max-w-4xl space-y-6 py-2 sm:py-4"
               @touchstart="onQuestionTouchStart($event)"
               @touchend="onQuestionTouchEnd($event)"
             >
@@ -64,10 +72,10 @@
               <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
                 <div class="text-sm text-slate-300">
                   <div x-show="currentQuestion()?.type === 'single'">选择选项后会自动进入下一题。</div>
-                  <div x-show="currentQuestion()?.type === 'multiple'">选择完成后点击“下一题”，或上滑卡片进入下一题。</div>
-                  <div x-show=”currentQuestion()?.type === 'short'”>简答完成后点击”完成本题”，或上滑卡片进入下一题。</div>
-                  <div x-show=”currentQuestion()?.type === 'code'”>代码题在点击”下一题”后保存，或上滑卡片进入下一题。</div>
-                  <div class=”mt-2 text-xs uppercase tracking-[0.22em] text-slate-500” x-text=”autosaveText()”></div>
+                  <div x-show="currentQuestion()?.type === 'multiple'">选择完成后点击"下一题"，或上滑卡片进入下一题。</div>
+                  <div x-show="currentQuestion()?.type === 'short'">简答完成后点击"完成本题"，或上滑卡片进入下一题。</div>
+                  <div x-show="currentQuestion()?.type === 'code'">代码题在点击"下一题"后保存，或上滑卡片进入下一题。</div>
+                  <div class="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500" x-text="autosaveText()"></div>
                 </div>
                 <div class="flex items-center gap-3">
                   <button
