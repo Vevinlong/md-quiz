@@ -134,7 +134,7 @@ def _convert_code_blocks(html_text: str) -> str:
     """Convert <pre><code> to <div class=\"code-stem\"> for client-side CodeMirror rendering."""
     def _replace(m: re.Match) -> str:
         lang = m.group(1)
-        code = html_lib.unescape(m.group(2))
+        code = m.group(2)
         return f'<div class="code-stem" data-lang="{lang}">{code}</div>'
     return _CODE_BLOCK_RE.sub(_replace, html_text)
 
