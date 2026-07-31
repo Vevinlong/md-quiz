@@ -2,21 +2,33 @@
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState, Compartment } from "@codemirror/state";
 import { cpp } from "@codemirror/lang-cpp";
+import { css } from "@codemirror/lang-css";
+import { go } from "@codemirror/lang-go";
+import { html } from "@codemirror/lang-html";
 import { java } from "@codemirror/lang-java";
-import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
+import { python } from "@codemirror/lang-python";
 import { sql } from "@codemirror/lang-sql";
+import { vue } from "@codemirror/lang-vue";
 import { lineNumbers, keymap } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting, indentUnit } from "@codemirror/language";
 import { indentWithTab } from "@codemirror/commands";
 import * as lz from "@lezer/highlight";
 
 const LANG_MAP = {
-  cpp,
+  c: cpp, cpp,
+  css,
+  go,
+  html,
   java, python,
   js: javascript,
   javascript,
+  json,
+  markdown, md: markdown,
   sql,
+  vue,
 };
 
 // ── Theme cache (lazy — tags accessed at call time, not module-init time) ──
