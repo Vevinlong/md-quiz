@@ -26,8 +26,12 @@ const LANG_MAP = {
   js: javascript,
   javascript,
   json,
+  jsx: () => javascript({ jsx: true }),
   markdown, md: markdown,
   sql,
+  ts: () => javascript({ typescript: true }),
+  typescript: () => javascript({ typescript: true }),
+  tsx: () => javascript({ jsx: true, typescript: true }),
   vue,
 };
 
