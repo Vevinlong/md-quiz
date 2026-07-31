@@ -55,14 +55,19 @@
                     placeholder="输入你的答案"
                   ></textarea>
                 </div>
+
+                <div x-show="currentQuestion()?.type === 'code'" class="mt-4 overflow-hidden rounded-lg">
+                  <div class="code-mount" :data-qid="currentQuestion()?.qid" :data-lang="currentQuestion()?.lang || 'java'"></div>
+                </div>
               </div>
 
               <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
                 <div class="text-sm text-slate-300">
                   <div x-show="currentQuestion()?.type === 'single'">选择选项后会自动进入下一题。</div>
                   <div x-show="currentQuestion()?.type === 'multiple'">选择完成后点击“下一题”，或上滑卡片进入下一题。</div>
-                  <div x-show="currentQuestion()?.type === 'short'">简答完成后点击“完成本题”，或上滑卡片进入下一题。</div>
-                  <div class="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500" x-text="autosaveText()"></div>
+                  <div x-show=”currentQuestion()?.type === 'short'”>简答完成后点击”完成本题”，或上滑卡片进入下一题。</div>
+                  <div x-show=”currentQuestion()?.type === 'code'”>代码题在点击”下一题”后保存，或上滑卡片进入下一题。</div>
+                  <div class=”mt-2 text-xs uppercase tracking-[0.22em] text-slate-500” x-text=”autosaveText()”></div>
                 </div>
                 <div class="flex items-center gap-3">
                   <button
@@ -72,7 +77,7 @@
                     :disabled="!canAdvanceCurrent() || actionBusy"
                     class="rounded-md px-5 py-3 text-sm font-semibold transition"
                     :class="canAdvanceCurrent() && !actionBusy ? 'bg-emerald-400 text-slate-950 hover:bg-emerald-300' : 'cursor-not-allowed border border-white/10 bg-white/6 text-slate-400'"
-                    x-text="currentQuestion()?.type === 'short' ? '完成本题' : '下一题'"
+                    x-text="currentQuestion()?.type === 'short' || currentQuestion()?.type === 'code' ? '完成本题' : '下一题'"
                   >
                   </button>
                   <button
@@ -82,7 +87,7 @@
                     :disabled="!canAdvanceCurrent() || actionBusy"
                     class="rounded-md px-5 py-3 text-sm font-semibold transition"
                     :class="canAdvanceCurrent() && !actionBusy ? 'bg-emerald-400 text-slate-950 hover:bg-emerald-300' : 'cursor-not-allowed border border-white/10 bg-white/6 text-slate-400'"
-                    x-text="currentQuestion()?.type === 'short' ? '完成并提交' : '提交测验'"
+                    x-text="currentQuestion()?.type === 'short' || currentQuestion()?.type === 'code' ? '完成并提交' : '提交测验'"
                   >
                   </button>
                 </div>

@@ -130,6 +130,7 @@ export function createPublicQuizModule() {
             if (!question) return null;
             if (question.type === "short") return this.textDraft;
             if (question.type === "multiple") return [...this.selectedMultiple];
+            if (question.type === "code") return this.currentAnswer();
             return this.currentAnswer();
           },
 
@@ -170,18 +171,22 @@ export function createPublicQuizModule() {
             if (!question) return false;
             if (question.type === "single") return Boolean(String(this.currentAnswer() || "").trim());
             if (question.type === "multiple") return this.selectedMultiple.length > 0;
+            if (question.type === "code") return Boolean(String(this.currentAnswer() || "").trim());
             return Boolean(String(this.textDraft || "").trim());
           },
 
           deferredSaveText(question = this.currentQuestion()) {
-            if (!question) return "";
-            if (question.type === "short") {
-              return this.isLastQuestion() ? "简答题在点击“完成并提交”后保存" : "简答题在点击“完成本题”后保存";
+            if (!question) return “”;
+            if (question.type === “short”) {
+              return this.isLastQuestion() ? “简答题在点击”完成并提交”后保存” : “简答题在点击”完成本题”后保存”;
             }
-            if (question.type === "multiple") {
-              return this.isLastQuestion() ? "多选题在点击“提交测验”后保存" : "多选题在点击“下一题”后保存";
+            if (question.type === “multiple”) {
+              return this.isLastQuestion() ? “多选题在点击”提交测验”后保存” : “多选题在点击”下一题”后保存”;
             }
-            return "";
+            if (question.type === “code”) {
+              return this.isLastQuestion() ? “代码题在点击”完成并提交”后保存” : “代码题在点击”下一题”后保存”;
+            }
+            return “”;
           },
 
           questionProgressPercent() {
@@ -265,6 +270,11 @@ export function createPublicQuizModule() {
           },
 
           onTextInput() {
+            this.clearAutosaveTimer();
+            this.autosaveMessage = this.deferredSaveText();
+          },
+
+          onCodeInput() {
             this.clearAutosaveTimer();
             this.autosaveMessage = this.deferredSaveText();
           },

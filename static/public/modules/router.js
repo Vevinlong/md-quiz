@@ -238,6 +238,10 @@ export function createPublicRouterModule() {
           } else if (question?.type === "multiple") {
             this.selectedMultiple = Array.isArray(answer) ? [...answer] : [];
             this.textDraft = "";
+          } else if (question?.type === "code") {
+            // code 答案由 CodeMirror onChange 写入 state.assignment.answers
+            this.textDraft = "";
+            this.selectedMultiple = [];
           } else {
             this.textDraft = "";
             this.selectedMultiple = [];
@@ -254,11 +258,13 @@ export function createPublicRouterModule() {
           if (this.state.step === "verify") {
             this.focusOtpInput(0);
           }
-          if (this.viewCard === "full-quiz" && typeof CodeMirrorBundle !== "undefined") {
+          if ((this.viewCard === "full-quiz" || this.viewCard === "question") && typeof CodeMirrorBundle !== "undefined") {
+            const isFullQuiz = this.viewCard === "full-quiz";
             this.$nextTick(() => {
               const theme = this.codeSettings?.theme || "one-dark";
               const wrap = this.codeSettings?.wrap === true;
               const pageTheme = this.pageTheme || "dark";
+              // ── Answer editors (.code-mount) ──
               document.querySelectorAll(".code-mount").forEach((el) => {
                 if (el._cmView) return;
                 const qid = el.dataset.qid;
@@ -272,67 +278,87 @@ export function createPublicRouterModule() {
                   onChange: function(v) {
                     if (!self.state.assignment.answers) self.state.assignment.answers = {};
                     self.state.assignment.answers[qid] = v;
-                    if (saveTimer) clearTimeout(saveTimer);
-                    saveTimer = setTimeout(() => {
-                      if (v.trim() && question) self.saveAnswer(question, v);
-                    }, 2000);
+                    if (isFullQuiz) {
+                      // full-quiz: debounced auto-save
+                      if (saveTimer) clearTimeout(saveTimer);
+                      saveTimer = setTimeout(() => {
+                        if (v.trim() && question) self.saveAnswer(question, v);
+                      }, 2000);
+                    } else {
+                      // linear mode: save on "下一题", just update hint
+                      self.onCodeInput();
+                    }
                   },
                 });
               });
-              // Initialize read-only stem code blocks
-              document.querySelectorAll(".code-stem").forEach((el) => {
-                if (el._cmView) return;
-                try {
-                  const lang = el.dataset.lang || "java";
-                  const val = el.textContent || "";
-                  const id = this._nextStemId();
-                  el.dataset.stemId = id;
-                  el.textContent = "";
+              // ── Read-only stem code blocks ──
+              if (isFullQuiz) {
+                document.querySelectorAll(".code-stem").forEach((el) => {
+                  if (el._cmView) return;
+                  try {
+                    const lang = el.dataset.lang || "java";
+                    const val = el.textContent || "";
+                    const id = this._nextStemId();
+                    el.dataset.stemId = id;
+                    el.textContent = "";
 
-                  const stTheme = this.getStemTheme(id);
-                  const stWrap = this.getStemWrap(id);
-                  const themeNames = CodeMirrorBundle.getThemeNames(pageTheme);
-                  const selectHtml = themeNames.map(t =>
-                    '<option value="' + t.id + '"' + (t.id === stTheme ? ' selected' : '') + '>' + t.label + '</option>'
-                  ).join("");
+                    const stTheme = this.getStemTheme(id);
+                    const stWrap = this.getStemWrap(id);
+                    const themeNames = CodeMirrorBundle.getThemeNames(pageTheme);
+                    const selectHtml = themeNames.map(t =>
+                      '<option value="' + t.id + '"' + (t.id === stTheme ? ' selected' : '') + '>' + t.label + '</option>'
+                    ).join("");
 
-                  // Build full toolbar (same structure as answer editor)
-                  const tb = document.createElement("div");
-                  tb.className = "stem-toolbar flex items-center gap-2 mb-2 flex-wrap";
-                  tb.innerHTML =
-                    '<span class="stem-toolbar--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">' + lang + '</span>' +
-                    '<span class="text-[11px] text-slate-500">高亮配色</span>' +
-                    '<select class="full-quiz--toolbar-select rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none">' + selectHtml + '</select>' +
-                    '<button type="button" class="full-quiz--toolbar-btn rounded-lg border px-2.5 py-1 text-xs transition' +
-                    (stWrap ? ' border-emerald-400/40 bg-emerald-400/10 text-emerald-400' : ' border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-300') + '">↻ 自动换行</button>';
-                  el.parentNode.insertBefore(tb, el);
+                    const tb = document.createElement("div");
+                    tb.className = "stem-toolbar flex items-center gap-2 mb-2 flex-wrap";
+                    tb.innerHTML =
+                      '<span class="stem-toolbar--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">' + lang + '</span>' +
+                      '<span class="text-[11px] text-slate-500">高亮配色</span>' +
+                      '<select class="full-quiz--toolbar-select rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition focus:border-emerald-400/40 focus:outline-none">' + selectHtml + '</select>' +
+                      '<button type="button" class="full-quiz--toolbar-btn rounded-lg border px-2.5 py-1 text-xs transition' +
+                      (stWrap ? ' border-emerald-400/40 bg-emerald-400/10 text-emerald-400' : ' border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-300') + '">↻ 自动换行</button>';
+                    el.parentNode.insertBefore(tb, el);
 
-                  const thSel = tb.querySelector("select");
-                  const wrapBtn = tb.querySelector("button");
+                    const thSel = tb.querySelector("select");
+                    const wrapBtn = tb.querySelector("button");
 
-                  CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: stTheme, readOnly: true, wrap: stWrap });
+                    CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: stTheme, readOnly: true, wrap: stWrap });
 
-                  thSel.addEventListener("change", () => {
-                    this.setStemTheme(id, thSel.value);
-                    if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, thSel.value);
-                  });
+                    thSel.addEventListener("change", () => {
+                      this.setStemTheme(id, thSel.value);
+                      if (el._cmView) CodeMirrorBundle.reconfigureTheme(el, thSel.value);
+                    });
 
-                  wrapBtn.addEventListener("click", () => {
-                    const on = !this.getStemWrap(id);
-                    this.setStemWrap(id, on);
-                    if (el._cmView) CodeMirrorBundle.reconfigureWrap(el, on);
-                    if (on) {
-                      wrapBtn.classList.add("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
-                      wrapBtn.classList.remove("text-slate-400", "hover:text-slate-300");
-                    } else {
-                      wrapBtn.classList.remove("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
-                      wrapBtn.classList.add("text-slate-400", "hover:text-slate-300");
-                    }
-                  });
-                } catch (e) {
-                  console.warn("[code-stem] CM init failed:", e.message);
-                }
-              });
+                    wrapBtn.addEventListener("click", () => {
+                      const on = !this.getStemWrap(id);
+                      this.setStemWrap(id, on);
+                      if (el._cmView) CodeMirrorBundle.reconfigureWrap(el, on);
+                      if (on) {
+                        wrapBtn.classList.add("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
+                        wrapBtn.classList.remove("text-slate-400", "hover:text-slate-300");
+                      } else {
+                        wrapBtn.classList.remove("border-emerald-400/40", "bg-emerald-400/10", "text-emerald-400");
+                        wrapBtn.classList.add("text-slate-400", "hover:text-slate-300");
+                      }
+                    });
+                  } catch (e) {
+                    console.warn("[code-stem] CM init failed:", e.message);
+                  }
+                });
+              } else {
+                // linear mode: simple read-only stem blocks, no toolbar
+                document.querySelectorAll(".code-stem").forEach((el) => {
+                  if (el._cmView) return;
+                  try {
+                    const lang = el.dataset.lang || "java";
+                    const val = el.textContent || "";
+                    el.textContent = "";
+                    CodeMirrorBundle.createCodeMirror(el, { value: val, lang: lang, pageTheme: pageTheme, themeName: theme, readOnly: true, wrap: wrap });
+                  } catch (e) {
+                    console.warn("[code-stem] CM init failed:", e.message);
+                  }
+                });
+              }
             });
           }
           this.queueMathTypeset();
