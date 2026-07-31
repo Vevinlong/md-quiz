@@ -93,6 +93,17 @@ export function createPublicRouterModule() {
 
           async handlePopState(event) {
             const nextPathname = location.pathname;
+            const curPathSearch = location.pathname + location.search;
+            // Hash link clicks can fire popstate after history.pushState.
+            // Detect via: (a) hashchange sentinel, or (b) same page + null state
+            // + back guard not yet armed (armed + null state = second back, let through).
+            const isSamePage = this._routePathSearch === curPathSearch;
+            const stillArmed = this.backGuardArmed && Date.now() < Number(this.backGuardDeadline || 0);
+            if (this._justHashChanged || (isSamePage && event?.state == null && !stillArmed)) {
+              this._justHashChanged = false;
+              this.backGuardHistoryArmed = this.isBackGuardHistoryState(event?.state);
+              return;
+            }
             if (this.backGuardBypass) {
               if (this.backGuardSkipToken && this.shouldSkipSameFlowHistory(nextPathname)) {
                 window.history.back();
@@ -115,7 +126,6 @@ export function createPublicRouterModule() {
               return;
             }
 
-            const stillArmed = this.backGuardArmed && Date.now() < Number(this.backGuardDeadline || 0);
             if (!stillArmed) {
               this.armBackGuardPrompt();
               this.pushBackGuardHistoryEntry();
@@ -138,6 +148,13 @@ export function createPublicRouterModule() {
               };
               window.addEventListener("popstate", this._popstateHandler);
             }
+            if (!this._hashchangeHandler) {
+              this._hashchangeHandler = () => {
+                this._justHashChanged = true;
+                this._lastHashChangeMs = Date.now();
+              };
+              window.addEventListener("hashchange", this._hashchangeHandler);
+            }
             if (!this._beforeUnloadHandler) {
               this._beforeUnloadHandler = (event) => this.handleBeforeUnload(event);
               window.addEventListener("beforeunload", this._beforeUnloadHandler);
@@ -155,6 +172,7 @@ export function createPublicRouterModule() {
             this.error = "";
             this.resetSmsState();
             this.route = this.parseRoute(pathname);
+            this._routePathSearch = location.pathname + location.search;
             if (this.route.kind === "invite") {
               await this.ensureInvite(this.route.token);
               return;
@@ -261,9 +279,12 @@ export function createPublicRouterModule() {
           if ((this.viewCard === "full-quiz" || this.viewCard === "question") && typeof CodeMirrorBundle !== "undefined") {
             const isFullQuiz = this.viewCard === "full-quiz";
             this.$nextTick(() => {
-              const theme = this.codeSettings?.theme || "one-dark";
-              const wrap = this.codeSettings?.wrap === true;
-              const pageTheme = this.pageTheme || "dark";
+              // Linear mode always uses dark theme; full-quiz respects user preference
+              const theme = isFullQuiz ? (this.codeSettings?.theme || "one-dark") : "one-dark";
+              const wrap = isFullQuiz ? (this.codeSettings?.wrap === true) : false;
+              const pageTheme = isFullQuiz ? (this.pageTheme || "dark") : "dark";
+              // Linear mode: auto-height (minHeight "0" lets CSS control the height)
+              const answerMinHeight = isFullQuiz ? "400px" : "0";
               // ── Answer editors (.code-mount) ──
               document.querySelectorAll(".code-mount").forEach((el) => {
                 if (el._cmView) return;
@@ -274,7 +295,7 @@ export function createPublicRouterModule() {
                 const self = this;
                 let saveTimer = null;
                 CodeMirrorBundle.createCodeMirror(el, {
-                  value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap,
+                  value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap, minHeight: answerMinHeight,
                   onChange: function(v) {
                     if (!self.state.assignment.answers) self.state.assignment.answers = {};
                     self.state.assignment.answers[qid] = v;
