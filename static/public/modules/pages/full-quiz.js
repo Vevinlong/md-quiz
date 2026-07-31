@@ -207,7 +207,7 @@ export function createPublicFullQuizModule() {
       }
     },
 
-    async selectSingleOption(question, optionKey) {
+    async fqSelectSingleOption(question, optionKey) {
       if (this.actionBusy) return;
       const qid = String(question.qid || "");
       if (!qid) return;
@@ -216,7 +216,7 @@ export function createPublicFullQuizModule() {
       await this.saveAnswer(question, String(optionKey || ""));
     },
 
-    toggleMultipleOption(question, optionKey) {
+    fqToggleMultipleOption(question, optionKey) {
       if (this.actionBusy) return;
       const qid = String(question.qid || "");
       if (!qid) return;
@@ -236,11 +236,11 @@ export function createPublicFullQuizModule() {
       this.saveAnswer(question, current);
     },
 
-    isSingleSelected(question, optionKey) {
+    fqIsSingleSelected(question, optionKey) {
       return String(this.state.assignment?.answers?.[String(question.qid || "")] || "") === String(optionKey || "");
     },
 
-    isMultipleSelected(question, optionKey) {
+    fqIsMultipleSelected(question, optionKey) {
       const current = this.state.assignment?.answers?.[String(question.qid || "")] || [];
       return Array.isArray(current) && current.includes(String(optionKey || ""));
     },
