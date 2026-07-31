@@ -338,6 +338,20 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
                     }
                 )
                 i += 1
+                # Collect multi-line option body (e.g. fenced code blocks)
+                while i < end_idx:
+                    next_cur = lines[i]
+                    if _OPTION_RE.match(next_cur):
+                        break
+                    if next_cur.strip() in ("[rubric]", "[llm]"):
+                        break
+                    if _HEADER_RE.match(next_cur.strip()):
+                        break
+                    body_text += "\n" + next_cur
+                    i += 1
+                # Update last option with accumulated body
+                if options:
+                    options[-1]["text"] = body_text.strip()
                 continue
 
             stem_lines.append(cur)
