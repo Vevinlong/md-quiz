@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
@@ -62,6 +63,8 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
     subjective_details_by_qid: dict[str, dict[str, Any]] = {}
     trait_questions = []
     short_batch_candidates: list[dict[str, Any]] = []
+    # Collect LLM grading tasks: (label, callable)
+    llm_tasks: list[tuple[str, Any]] = []
 
     raw_total = 0
     raw_scored = 0
@@ -101,20 +104,9 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
             continue
 
         if grading_short_answer._short_prompt_template(q, exam_llm):
-            scored, reason = grading_short_answer._grade_short(
-                q,
-                normalized_answer,
-                exam_llm,
-                llm_json=call_llm_json,
-                llm_text=call_llm_text,
-            )
-            subjective_details_by_qid[qid] = {
-                "qid": qid,
-                "score": scored,
-                "max": max_points,
-                "reason": reason,
-            }
-            raw_scored += scored
+            # Defer to parallel phase
+            llm_tasks.append((qid, lambda q=q, a=normalized_answer, e=exam_llm: grading_short_answer._grade_short(
+                q, a, e, llm_json=call_llm_json, llm_text=call_llm_text)))
             continue
 
         short_batch_candidates.append(
@@ -126,30 +118,63 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
             }
         )
 
+    # ── Batch candidates via _grade_short_batches ──
     if len(short_batch_candidates) == 1:
         item = short_batch_candidates[0]
-        scored, reason = grading_short_answer._grade_short(
-            item["question"],
-            item["answer"],
-            exam_llm,
-            llm_json=call_llm_json,
-            llm_text=call_llm_text,
-        )
-        subjective_details_by_qid[item["qid"]] = {
-            "qid": item["qid"],
-            "score": scored,
-            "max": int(item["max_points"] or 0),
-            "reason": reason,
-        }
-        raw_scored += scored
+        llm_tasks.append((item["qid"], lambda item=item, e=exam_llm: grading_short_answer._grade_short(
+            item["question"], item["answer"], e, llm_json=call_llm_json, llm_text=call_llm_text)))
     elif short_batch_candidates:
-        for result in grading_short_answer._grade_short_batches(
-            short_batch_candidates,
-            llm_json=call_llm_json,
-            llm_text=call_llm_text,
-        ):
-            subjective_details_by_qid[str(result.get("qid") or "")] = result
-            raw_scored += int(result.get("score") or 0)
+        # _grade_short_batches returns a list of results; wrap as a single task
+        def _batch_task(candidates=short_batch_candidates):
+            return grading_short_answer._grade_short_batches(
+                candidates, llm_json=call_llm_json, llm_text=call_llm_text)
+        llm_tasks.append(("__batch__", _batch_task))
+
+    # ── Parallel LLM execution ──
+    if llm_tasks:
+        with ThreadPoolExecutor(max_workers=len(llm_tasks)) as executor:
+            future_map: dict[Any, str] = {}
+            for label, fn in llm_tasks:
+                future_map[executor.submit(fn)] = label
+
+            for future in as_completed(future_map):
+                label = future_map[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.warning("LLM grading task failed for %s: %s", label, exc)
+                    if label == "__batch__":
+                        for item in short_batch_candidates:
+                            qid = str(item["qid"])
+                            if qid not in subjective_details_by_qid:
+                                subjective_details_by_qid[qid] = {
+                                    "qid": qid, "score": 0,
+                                    "max": int(item["max_points"] or 0),
+                                    "reason": "LLM 调用失败",
+                                }
+                    else:
+                        # Find the question to get max_points
+                        spec_q = next((x for x in spec.get("questions", []) if x.get("qid") == label), {})
+                        max_pts = int(spec_q.get("max_points") or spec_q.get("points") or 0)
+                        subjective_details_by_qid[label] = {
+                            "qid": label, "score": 0, "max": max_pts,
+                            "reason": "LLM 调用失败",
+                        }
+                    continue
+
+                if label == "__batch__":
+                    for item in result:
+                        qid = str(item.get("qid") or "")
+                        subjective_details_by_qid[qid] = item
+                        raw_scored += int(item.get("score") or 0)
+                else:
+                    scored, reason = result
+                    spec_q = next((x for x in spec.get("questions", []) if x.get("qid") == label), {})
+                    max_pts = int(spec_q.get("max_points") or spec_q.get("points") or 0)
+                    subjective_details_by_qid[label] = {
+                        "qid": label, "score": scored, "max": max_pts, "reason": reason,
+                    }
+                    raw_scored += scored
 
     for q in spec.get("questions", []):
         qid = str(q.get("qid") or "")
