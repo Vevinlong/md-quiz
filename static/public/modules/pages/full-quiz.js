@@ -299,6 +299,16 @@ export function createPublicFullQuizModule() {
     async confirmSubmit() {
       if (this.confirmSubmitLoading) return;
       this.confirmSubmitLoading = true;
+      // Clear all auto-save debounce timers to prevent post-submit saves
+      Object.values(this._shortTimers || {}).forEach(t => window.clearTimeout(t));
+      this._shortTimers = {};
+      Object.values(this._codeTimers || {}).forEach(t => window.clearTimeout(t));
+      this._codeTimers = {};
+      // Also clear CodeMirror saveTimers managed by router.js
+      if (this._codeMirrorSaveTimers) {
+        Object.values(this._codeMirrorSaveTimers).forEach(t => window.clearTimeout(t));
+        this._codeMirrorSaveTimers = {};
+      }
       try {
         await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
           method: "POST",

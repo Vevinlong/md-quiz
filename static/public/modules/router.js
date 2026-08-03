@@ -293,7 +293,7 @@ export function createPublicRouterModule() {
                 const val = (this.state?.assignment?.answers || {})[qid] || "";
                 const question = (this.state?.quiz?.spec?.questions || []).find(q => String(q.qid) === qid);
                 const self = this;
-                let saveTimer = null;
+                if (!self._codeMirrorSaveTimers) self._codeMirrorSaveTimers = {};
                 CodeMirrorBundle.createCodeMirror(el, {
                   value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap, minHeight: answerMinHeight,
                   onChange: function(v) {
@@ -301,8 +301,9 @@ export function createPublicRouterModule() {
                     self.state.assignment.answers[qid] = v;
                     if (isFullQuiz) {
                       // full-quiz: debounced auto-save
-                      if (saveTimer) clearTimeout(saveTimer);
-                      saveTimer = setTimeout(() => {
+                      if (self._codeMirrorSaveTimers[qid]) clearTimeout(self._codeMirrorSaveTimers[qid]);
+                      self._codeMirrorSaveTimers[qid] = setTimeout(() => {
+                        delete self._codeMirrorSaveTimers[qid];
                         if (v.trim() && question) self.saveAnswer(question, v);
                       }, 2000);
                     } else {
