@@ -158,6 +158,7 @@ export function createAdminRouterModule() {
       const data = await this.api("/api/admin/session", { quiet: true });
       this.session = data || { authenticated: false, username: "" };
       this.loadVersion().catch(() => {});
+      this.startAdminClock();
       // Rebuild navItems based on role
       const common = [
         { href: "/admin/assignments", label: "邀约与答题", icon: "assignment" },
@@ -187,6 +188,15 @@ export function createAdminRouterModule() {
       } catch (_e) {
         this.buildVersion = "";
       }
+    },
+
+    startAdminClock() {
+      if (this._adminClockTimer) return;
+      const tick = () => {
+        this.nowTime = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+      };
+      tick();
+      this._adminClockTimer = setInterval(tick, 1000);
     },
 
     async loadBootstrap() {
