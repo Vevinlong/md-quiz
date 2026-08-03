@@ -361,6 +361,24 @@ def process_grade_attempt_job(token: str) -> dict[str, Any]:
         assignment["status_updated_at"] = finished_at
         assignment["grading_error"] = None
         save_assignment(t, assignment)
+
+        # Auto-handle: mark as handled if all LLM calls succeeded
+        llm_failures = [
+            item for item in (grading.get("subjective") or [])
+            if str(item.get("reason") or "").strip() == "LLM 调用失败"
+        ]
+        if llm_failures:
+            logger.warning(
+                "Grading completed with %d LLM failure(s) for %s — leaving unhandled",
+                len(llm_failures), t,
+            )
+        else:
+            try:
+                set_quiz_paper_handling(t, handled=True, handled_by="auto")
+                logger.info("Auto-handled %s after successful AI grading", t)
+            except Exception:
+                logger.exception("Failed to auto-handle %s", t)
+
         finalized_assignment = dict(assignment)
 
     _sync_grade_side_effects(
