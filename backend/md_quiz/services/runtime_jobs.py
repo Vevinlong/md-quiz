@@ -638,8 +638,25 @@ def _find_archive_by_token(token: str, *, assignment: dict | None = None) -> dic
     phone = str(c.get("phone") or "").strip()
     if not phone:
         return None
+    # Match on quiz to avoid mixing archives from different exams for the same candidate.
+    quiz_key = str(assignment.get("quiz_key") or "").strip()
+    try:
+        quiz_version_id = int(assignment.get("quiz_version_id") or 0)
+    except Exception:
+        quiz_version_id = 0
     rows = list_quiz_archives_for_phone(phone)
-    return rows[0] if rows else None
+    for row in rows:
+        exam = (row.get("archive") or {}).get("exam") or {}
+        row_quiz_key = str(exam.get("quiz_key") or "").strip()
+        if quiz_key and row_quiz_key == quiz_key:
+            return row
+        try:
+            row_version_id = int(exam.get("quiz_version_id") or 0)
+        except Exception:
+            row_version_id = 0
+        if quiz_version_id > 0 and row_version_id == quiz_version_id:
+            return row
+    return None
 
 
 def _augment_archive_with_spec(archive: dict) -> dict:
