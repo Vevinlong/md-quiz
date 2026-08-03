@@ -14,6 +14,7 @@ x-app-service: &app-service
   env_file:
     - .env
   environment:
+    TZ: Asia/Shanghai
     # 容器内需要改走 compose 网络，不能沿用宿主机 .env 里的 127.0.0.1:5433。
     DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-pasword}@db:5432/${POSTGRES_DB:-md_quiz}
 
