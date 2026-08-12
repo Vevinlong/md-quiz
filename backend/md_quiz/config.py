@@ -198,6 +198,7 @@ DB_POOL_WAIT_TIMEOUT_SECONDS = settings.db_pool_wait_timeout_seconds
 OPENAI_API_KEY = settings.openai_api_key
 OPENAI_BASE_URL = settings.openai_base_url
 OPENAI_MODEL = settings.openai_model
+LLM_API_PROTOCOL = os.getenv("LLM_API_PROTOCOL", "responses").strip().lower()
 EXAM_REPO_SYNC_PROXY = settings.exam_repo_sync_proxy
 
 
@@ -212,6 +213,7 @@ __all__ = [
     "DATABASE_URL",
     "EXAM_REPO_SYNC_PROXY",
     "EnvironmentSettings",
+    "LLM_API_PROTOCOL",
     "LOG_LEVEL",
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
