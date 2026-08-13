@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from urllib.parse import urlsplit, urlunsplit
+
 from fastapi import Request
 
 _FORWARDED_SCHEMES = {"http", "https"}
@@ -21,7 +24,34 @@ def _forwarded_param(raw: str, key: str) -> str:
     return ""
 
 
+def _configured_site_base_url() -> str:
+    """Return the site base URL from SITE_BASE_URL env, if configured.
+
+    Only scheme + host (and optional port) are kept; any path/query/fragment
+    is dropped to keep generated links correct.
+    """
+    raw = os.getenv("SITE_BASE_URL", "").strip()
+    if not raw:
+        return ""
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return ""
+    netloc = parsed.netloc
+    if not netloc:
+        return ""
+    scheme = parsed.scheme or "https"
+    return urlunsplit((scheme, netloc, "", "", "")).rstrip("/")
+
+
 def external_base_url(request: Request) -> str:
+    # 1. Explicitly configured public domain (highest priority).
+    configured = _configured_site_base_url()
+    if configured:
+        return configured
+
     base_url = request.base_url
     forwarded_header = request.headers.get("forwarded", "")
     scheme = _forwarded_param(forwarded_header, "proto").lower()
