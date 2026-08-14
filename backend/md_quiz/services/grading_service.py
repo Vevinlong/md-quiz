@@ -100,6 +100,7 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                 "score": 0,
                 "max": max_points,
                 "reason": "未作答、无意义内容或与题目无关，得 0 分",
+                "ai_flavor": 0,
             }
             continue
 
@@ -151,6 +152,7 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                                     "qid": qid, "score": 0,
                                     "max": int(item["max_points"] or 0),
                                     "reason": "LLM 调用失败",
+                                    "ai_flavor": 0,
                                 }
                     else:
                         # Find the question to get max_points
@@ -159,6 +161,7 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                         subjective_details_by_qid[label] = {
                             "qid": label, "score": 0, "max": max_pts,
                             "reason": "LLM 调用失败",
+                            "ai_flavor": 0,
                         }
                     continue
 
@@ -168,11 +171,12 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                         subjective_details_by_qid[qid] = item
                         raw_scored += int(item.get("score") or 0)
                 else:
-                    scored, reason = result
+                    scored, reason, ai_flavor = result
                     spec_q = next((x for x in spec.get("questions", []) if x.get("qid") == label), {})
                     max_pts = int(spec_q.get("max_points") or spec_q.get("points") or 0)
                     subjective_details_by_qid[label] = {
                         "qid": label, "score": scored, "max": max_pts, "reason": reason,
+                        "ai_flavor": ai_flavor,
                     }
                     raw_scored += scored
 

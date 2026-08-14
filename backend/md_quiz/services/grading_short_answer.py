@@ -53,7 +53,8 @@ def _short_grading_prefix(max_points: int) -> str:
         "- 只要与评分要点沾边一点，就允许给部分分（1..满分任意整数），不要求逐字一致。\n"
         "- 若 rubric 未给出分点，请自行拆分要点并按覆盖程度给分。\n"
         "- 只依据考生回答作答，不要推测其“可能想表达什么”。\n"
-        f"- 只输出 JSON，必须包含：score、reason、relevance、contradiction。\n"
+        f"- 只输出 JSON，必须包含：score、reason、relevance、contradiction、ai_flavor。\n"
+        "- ai_flavor 表示作答的 AI 生成痕迹程度：0=无明显痕迹；1=轻微；2=明显；3=极明显（如结构模板化、空泛套话、堆砌无关要点、过度工整、与个人具体经历脱节等）。只依据作答文本本身判断，不要臆断其来源。\n"
     )
 
 
@@ -69,6 +70,7 @@ def _short_batch_grading_prefix() -> str:
         "- 只要与评分要点沾边一点，就允许给部分分（1..满分任意整数），不要求逐字一致。\n"
         "- 若 rubric 未给出分点，请自行拆分要点并按覆盖程度给分。\n"
         "- 只依据考生回答作答，不要推测其“可能想表达什么”。\n"
+        "- 每道题的 result 都必须包含 ai_flavor：0=无明显 AI 痕迹；1=轻微；2=明显；3=极明显（结构模板化、空泛套话、堆砌无关要点、过度工整等）。只依据作答文本判断。\n"
         '- 只输出一个 JSON 对象，格式为 {"results":[...]}。\n'
     )
 
@@ -142,7 +144,7 @@ def _extract_json_like_payload(raw: Any) -> Any:
     return json.loads(text)
 
 
-def _coerce_short_grade_payload(raw: Any, *, max_points: int) -> tuple[int, str, int | None, bool]:
+def _coerce_short_grade_payload(raw: Any, *, max_points: int) -> tuple[int, str, int | None, bool, int]:
     obj = _extract_json_like_payload(raw)
     if not isinstance(obj, dict):
         raise ValueError("short grading payload must be an object")
@@ -156,9 +158,13 @@ def _coerce_short_grade_payload(raw: Any, *, max_points: int) -> tuple[int, str,
     relevance = _parse_intish(obj.get("relevance", None))
     if relevance is not None:
         relevance = max(0, min(3, int(relevance)))
+    ai_flavor = _parse_intish(obj.get("ai_flavor", None))
+    if ai_flavor is None:
+        ai_flavor = 0
+    ai_flavor = max(0, min(3, int(ai_flavor)))
     reason = str(obj.get("reason", "")).strip() or "模型未返回原因"
     score = max(0, min(max_points, score))
-    return score, reason, relevance, contradiction
+    return score, reason, relevance, contradiction, ai_flavor
 
 
 def _grade_short_reason(
@@ -229,12 +235,13 @@ def _default_batch_prompt(batch_items: list[dict[str, Any]]) -> str:
     parts = [
         "请一次性判改多道简答题。",
         "输出格式：只输出一个 JSON 对象，不要输出额外文本。",
-        'JSON 格式：{"results":[{"qid":"Q1","score":3,"reason":"...","relevance":2,"contradiction":false}]}',
+        'JSON 格式：{"results":[{"qid":"Q1","score":3,"reason":"...","relevance":2,"contradiction":false,"ai_flavor":0}]}',
         "要求：",
         "- results 必须覆盖输入中的每一道题，且 qid 必须原样返回。",
         "- score 必须是对应题目允许范围内的整数，可给部分分。",
         "- relevance 含义：0=完全无关/无意义；1=略相关；2=相关且部分正确；3=高度相关且基本正确。",
         "- contradiction=true 表示关键事实与评分标准矛盾/说反，此时该题必须记 0 分。",
+        "- ai_flavor 含义：0=无明显 AI 痕迹；1=轻微；2=明显；3=极明显。只依据作答文本判断。",
         "",
         "【待判简答题】",
     ]
@@ -307,7 +314,7 @@ def _grade_short_batch(
         payload = parsed.get(qid)
         if payload is None:
             raise ValueError(f"batch grading payload missing qid={qid}")
-        score, reason, relevance, contradiction = _coerce_short_grade_payload(
+        score, reason, relevance, contradiction, ai_flavor = _coerce_short_grade_payload(
             payload,
             max_points=max_points,
         )
@@ -323,7 +330,7 @@ def _grade_short_batch(
             llm_text=llm_text,
         )
         results.append(
-            {"qid": qid, "score": score, "max": max_points, "reason": reason}
+            {"qid": qid, "score": score, "max": max_points, "reason": reason, "ai_flavor": ai_flavor}
         )
     return results
 
@@ -341,7 +348,7 @@ def _grade_short_batches(
         except Exception as e:
             logger.warning("Batch short grading failed, fallback to per-question grading: %s", e)
             for item in batch_items:
-                scored, reason = _grade_short(
+                scored, reason, ai_flavor = _grade_short(
                     item["question"],
                     item["answer"],
                     {},
@@ -354,6 +361,7 @@ def _grade_short_batches(
                         "score": scored,
                         "max": int(item["max_points"] or 0),
                         "reason": reason,
+                        "ai_flavor": ai_flavor,
                     }
                 )
     return results
@@ -366,11 +374,11 @@ def _grade_short(
     *,
     llm_json: Callable[..., str] | None = None,
     llm_text: Callable[..., str] | None = None,
-) -> tuple[int, str]:
+) -> tuple[int, str, int]:
     max_points = int(q.get("max_points") or q.get("points") or 0)
     answer = _normalize_short_answer(answer)
     if _is_blank_short_answer(answer):
-        return 0, "未作答、无意义内容或与题目无关，得 0 分"
+        return 0, "未作答、无意义内容或与题目无关，得 0 分", 0
     rubric = q.get("rubric") or ""
     question = q.get("stem_md") or ""
     prompt_template = _short_prompt_template(q, exam_llm)
@@ -392,9 +400,9 @@ def _grade_short(
     call_json = llm_json or _default_call_llm_json
     raw = call_json(prompt)
     if not raw:
-        return 0, "LLM 调用失败"
+        return 0, "LLM 调用失败", 0
     try:
-        score, reason, relevance, contradiction = _coerce_short_grade_payload(
+        score, reason, relevance, contradiction, ai_flavor = _coerce_short_grade_payload(
             raw,
             max_points=max_points,
         )
@@ -405,9 +413,10 @@ def _grade_short(
             contradiction = False
             relevance = None
             reason = ""
+            ai_flavor = 0
         except Exception:
             logger.warning("LLM output parse failed: %r", raw)
-            return 0, "模型返回无法解析"
+            return 0, "模型返回无法解析", 0
     score, reason = _finalize_short_grade(
         question=question,
         rubric=rubric,
@@ -419,7 +428,7 @@ def _grade_short(
         max_points=max_points,
         llm_text=llm_text,
     )
-    return score, reason
+    return score, reason, ai_flavor
 
 
 __all__ = [

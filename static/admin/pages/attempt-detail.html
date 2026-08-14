@@ -40,6 +40,10 @@
                         class="assignment-badge border-amber-200 bg-amber-50 text-amber-700"
                       >已忽略计时</span>
                       <span
+                        x-show="attemptDetail.quiz_paper?.ai_flavor_suspect"
+                        class="assignment-badge border-rose-200 bg-rose-50 text-rose-700"
+                      >AI痕迹</span>
+                      <span
                         x-show="canToggleAssignmentHandling(attemptDetail.quiz_paper)"
                         :class="assignmentHandlingBadgeClass(attemptDetail.quiz_paper)"
                         x-text="assignmentHandlingLabel(attemptDetail.quiz_paper)"

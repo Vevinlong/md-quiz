@@ -200,11 +200,13 @@ OPENAI_BASE_URL = settings.openai_base_url
 OPENAI_MODEL = settings.openai_model
 LLM_API_PROTOCOL = os.getenv("LLM_API_PROTOCOL", "responses").strip().lower()
 EXAM_REPO_SYNC_PROXY = settings.exam_repo_sync_proxy
+AI_FLAVOR_THRESHOLD = _env_int("AI_FLAVOR_THRESHOLD", 2, minimum=0)
 
 
 __all__ = [
     "ADMIN_PASSWORD",
     "ADMIN_USERNAME",
+    "AI_FLAVOR_THRESHOLD",
     "BACKEND_ROOT",
     "BASE_DIR",
     "DB_POOL_MAXCONN",

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from backend.md_quiz.config import AI_FLAVOR_THRESHOLD
 from backend.md_quiz.services import candidate_resume_admin_service
 from backend.md_quiz.services import exam_helpers, runtime_jobs, support_deps as deps
 from backend.md_quiz.services.request_url_helpers import external_base_url
@@ -141,6 +142,24 @@ def _status_label(status_key: str) -> str:
 
 def _source_label(source_kind: str) -> str:
     return "公开邀约" if str(source_kind or "").strip() == "public" else "主动邀约"
+
+
+def _compute_ai_flavor_suspect(grading: dict[str, Any]) -> bool:
+    """任一主观题的 ai_flavor 达到阈值即视为疑似 AI 痕迹。"""
+    try:
+        threshold = int(AI_FLAVOR_THRESHOLD or 0)
+    except (TypeError, ValueError):
+        threshold = 2
+    for detail in (grading.get("subjective") or []):
+        if not isinstance(detail, dict):
+            continue
+        try:
+            level = int(detail.get("ai_flavor") or 0)
+        except (TypeError, ValueError):
+            level = 0
+        if level >= threshold:
+            return True
+    return False
 
 
 def _parse_date_ymd(value: str) -> date | None:
@@ -1127,6 +1146,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     score = row.get("score")
     score_max = None
     result_mode = ""
+    grading = {}
     if token:
         try:
             assignment = deps.load_assignment(token)
@@ -1143,6 +1163,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     handled_at = _iso_or_empty(row.get("handled_at"))
     handled_by = str(row.get("handled_by") or "").strip()
     needs_attention = bool(status_key == "finished" and not handled_at)
+    ai_flavor_suspect = _compute_ai_flavor_suspect(grading)
     return {
         "attempt_id": int(row.get("attempt_id") or 0),
         "candidate_id": candidate_id,
@@ -1165,6 +1186,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
         "handled_at": handled_at,
         "handled_by": handled_by,
         "needs_attention": needs_attention,
+        "ai_flavor_suspect": ai_flavor_suspect,
         "score": score,
         "score_max": score_max,
         "score_display": _score_display(score, score_max, result_mode=result_mode),
