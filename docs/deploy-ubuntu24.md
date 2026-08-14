@@ -122,6 +122,8 @@ POSTGRES_DB=mdquiz
 OPENAI_API_KEY=<火山方舟 API Key>
 OPENAI_MODEL=deepseek-v4-flash-260425
 # OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+# 简答/编程题 AI 痕迹检测阈值（0-3，默认 2）
+AI_FLAVOR_THRESHOLD=2
 
 # ========== 短信验证（可选） ==========
 SMS_ENABLED=false

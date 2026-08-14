@@ -84,6 +84,7 @@
 - `OPENAI_MODEL`
 - `OPENAI_BASE_URL`
 - `LLM_RESPONSE_FORMAT_JSON`
+- `AI_FLAVOR_THRESHOLD`
 - `LLM_RETRY_MAX`
 - `LLM_TIMEOUT_JSON`
 - `LLM_TIMEOUT_TEXT`
@@ -96,6 +97,7 @@
 - 当前 LLM 调用统一走 `backend/md_quiz/services/llm_client.py`
 - 底层使用 OpenAI Python SDK 的 `client.responses.create(...)`
 - `LLM_FILE_READY_TIMEOUT` 控制 PDF/DOCX 等附件上传后等待 Files API 处理完成的秒数，默认 30 秒
+- `AI_FLAVOR_THRESHOLD` 控制简答/编程题的 AI 痕迹检测阈值（0-3，默认 2）；评卷 LLM 会对每道简答/编程题输出 `ai_flavor`（0=无 1=轻微 2=明显 3=极明显），某题 ≥ 该阈值时，该答题会在列表卡片和答题详情打上「AI痕迹」标签
 - 只兼容 `chat/completions` 的平台，不能只改 `OPENAI_BASE_URL` 直接接入
 
 ### 简历解析高级参数

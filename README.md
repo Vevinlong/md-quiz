@@ -145,6 +145,7 @@ postgresql+psycopg2://admin:pasword@127.0.0.1:5433/md_quiz
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_BASE_URL`
+- `AI_FLAVOR_THRESHOLD`：简答/编程题 AI 痕迹检测阈值（0-3，默认 2），某题 `ai_flavor` ≥ 该阈值时打「AI痕迹」标签
 
 用于自动判卷、简历解析等依赖 OpenAI-compatible `Responses API` 的能力，推荐服务商：
 
