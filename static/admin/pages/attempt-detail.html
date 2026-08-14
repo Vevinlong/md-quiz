@@ -50,6 +50,12 @@
                       ></span>
                     </div>
                     <div x-show="assignmentHandledMeta(attemptDetail.quiz_paper)" class="mt-3 text-[11px] text-slate-500" x-text="'处理人：' + assignmentHandledMeta(attemptDetail.quiz_paper)"></div>
+                    <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                      <span x-text="'日期 ' + (attemptDetail.quiz_paper?.answer_date_display || formatDate(attemptDetail.quiz_paper?.invite_start_date) || '-')"></span>
+                      <span x-show="attemptDetail.quiz_paper?.entered_time_display" x-text="'开始 ' + attemptDetail.quiz_paper.entered_time_display"></span>
+                      <span x-show="attemptDetail.quiz_paper?.finished_time_display" x-text="'结束 ' + attemptDetail.quiz_paper.finished_time_display"></span>
+                      <span x-show="attemptDetail.quiz_paper?.answer_duration_display" x-text="'用时 ' + attemptDetail.quiz_paper.answer_duration_display"></span>
+                    </div>
                   </div>
                   <div class="assignment-action-group sm:ml-auto" role="group" aria-label="答题实例操作">
                     <button

@@ -151,8 +151,10 @@
                           </button>
                         </span>
                         <span class="rounded-full bg-slate-100 px-2.5 py-1">得分 <strong x-text="item.score_display || '-'"></strong></span>
-                        <span class="rounded-full bg-slate-100 px-2.5 py-1">开始 <strong x-text="formatDate(item.invite_start_date) || '-'"></strong></span>
-                        <span class="rounded-full bg-slate-100 px-2.5 py-1">结束 <strong x-text="formatDate(item.invite_end_date) || '-'"></strong></span>
+                        <span class="rounded-full bg-slate-100 px-2.5 py-1">日期 <strong x-text="item.answer_date_display || formatDate(item.invite_start_date) || '-'"></strong></span>
+                        <span x-show="item.entered_time_display" class="rounded-full bg-slate-100 px-2.5 py-1">开始 <strong x-text="item.entered_time_display"></strong></span>
+                        <span x-show="item.finished_time_display" class="rounded-full bg-slate-100 px-2.5 py-1">结束 <strong x-text="item.finished_time_display"></strong></span>
+                        <span x-show="item.answer_duration_display" class="rounded-full bg-slate-100 px-2.5 py-1">用时 <strong x-text="item.answer_duration_display"></strong></span>
                       </div>
                       <div x-show="assignmentHandledMeta(item)" class="mt-2 text-[11px] text-slate-500" x-text="'处理人：' + assignmentHandledMeta(item)"></div>
                       <div class="mt-4 flex items-center gap-3 border-t border-slate-100 pt-3">

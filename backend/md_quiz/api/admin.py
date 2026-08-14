@@ -212,6 +212,28 @@ def _log_duration_display(seconds: Any) -> str:
     return f"{hours}小时{minute:02d}分"
 
 
+def _answer_time_displays(row: dict[str, Any]) -> dict[str, str]:
+    entered_at = _iso_or_empty(row.get("entered_at"))
+    finished_at = _iso_or_empty(row.get("finished_at"))
+    entered_display = _iso_to_local_display(entered_at)
+    finished_display = _iso_to_local_display(finished_at)
+    answer_date = entered_display[:10] if entered_display else ""
+    entered_time = entered_display[11:19] if len(entered_display) >= 19 else ""
+    finished_time = finished_display[11:19] if len(finished_display) >= 19 else ""
+    duration_display = ""
+    entered_dt = _parse_log_datetime(entered_at)
+    finished_dt = _parse_log_datetime(finished_at)
+    if entered_dt and finished_dt:
+        seconds = max(0, int((finished_dt - entered_dt).total_seconds()))
+        duration_display = _log_duration_display(seconds)
+    return {
+        "answer_date_display": answer_date,
+        "entered_time_display": entered_time,
+        "finished_time_display": finished_time,
+        "answer_duration_display": duration_display,
+    }
+
+
 def _score_display(score: Any, score_max: Any, *, result_mode: str = "") -> str:
     mode = str(result_mode or "").strip().lower()
     if mode == "traits":
@@ -1167,6 +1189,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     handled_by = str(row.get("handled_by") or "").strip()
     needs_attention = bool(status_key == "finished" and not handled_at)
     ai_flavor_suspect = _compute_ai_flavor_suspect(grading)
+    answer_time = _answer_time_displays(row)
     return {
         "attempt_id": int(row.get("attempt_id") or 0),
         "candidate_id": candidate_id,
@@ -1186,6 +1209,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
         "status_label": _status_label(status_key),
         "entered_at": _iso_or_empty(row.get("entered_at")),
         "finished_at": _iso_or_empty(row.get("finished_at")),
+        **answer_time,
         "handled_at": handled_at,
         "handled_by": handled_by,
         "needs_attention": needs_attention,
