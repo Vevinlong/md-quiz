@@ -101,6 +101,11 @@
                           </template>
                           <span x-show="question.has_score && !canEditGrading()" class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700" x-text="question.score_display"></span>
                           <span :class="attemptReviewQuestionStatusClass(question)" x-text="attemptReviewQuestionStatusLabel(question)"></span>
+                          <span
+                            x-show="attemptReviewAiFlavorLabel(question)"
+                            :class="attemptReviewAiFlavorClass(question)"
+                            x-text="attemptReviewAiFlavorLabel(question)"
+                          ></span>
                         </div>
                         <div class="text-[11px] font-medium text-slate-400 sm:pl-4" x-show="Number(question.max_points || 0) > 0" x-text="'满分 ' + Number(question.max_points || 0) + ' 分'"></div>
                       </div>

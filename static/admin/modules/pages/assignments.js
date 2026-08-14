@@ -337,6 +337,42 @@ export function createAdminAssignmentsModule() {
       return classes.join(" ");
     },
 
+    attemptReviewAiFlavorValue(question) {
+      const v = question?.ai_flavor;
+      return (typeof v === "number" && !Number.isNaN(v)) ? v : null;
+    },
+
+    attemptReviewShouldShowAiFlavor(question) {
+      if (!this.attemptReviewIsShortQuestion(question) && !this.attemptReviewIsCodeQuestion(question)) {
+        return false;
+      }
+      if (!this.attemptReviewHasAnswer(question)) {
+        return false;
+      }
+      return this.attemptReviewAiFlavorValue(question) !== null;
+    },
+
+    attemptReviewAiFlavorLabel(question) {
+      if (!this.attemptReviewShouldShowAiFlavor(question)) {
+        return "";
+      }
+      return "AI痕迹 " + this.attemptReviewAiFlavorValue(question);
+    },
+
+    attemptReviewAiFlavorClass(question) {
+      const value = this.attemptReviewAiFlavorValue(question);
+      const threshold = Number(this.attemptDetail?.ai_flavor_threshold ?? 2);
+      const classes = [
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+      ];
+      if (value !== null && value >= threshold) {
+        classes.push("border-rose-200 bg-rose-50 text-rose-700");
+      } else {
+        classes.push("border-emerald-200 bg-emerald-50 text-emerald-700");
+      }
+      return classes.join(" ");
+    },
+
     attemptReviewOptionIsSelected(question, option) {
       const key = String(option?.key || "").trim();
       return Boolean(key) && this.attemptReviewSelectedOptions(question).includes(key);

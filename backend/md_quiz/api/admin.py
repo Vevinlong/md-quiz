@@ -322,6 +322,7 @@ def _build_review_answer_item(
     options = _normalize_review_options(raw_question.get("options"), spec_question=spec_question)
     review_kind = _review_question_kind(qtype, options)
     score = _coerce_int_or_none(raw_question.get("score"))
+    ai_flavor = _coerce_int_or_none(raw_question.get("ai_flavor"))
     max_points = _coerce_int_or_none(
         raw_question.get("max_points")
         or (spec_question or {}).get("max_points")
@@ -415,6 +416,7 @@ def _build_review_answer_item(
         "reason": str(raw_question.get("reason") or "").strip() + reason_override_suffix,
         "rubric": rubric,
         "rubric_html": rubric_html,
+        "ai_flavor": ai_flavor,
     }
 
 
@@ -511,6 +513,7 @@ def _build_review_answers(
             "score": score_detail.get("score"),
             "score_max": score_detail.get("max") or spec_question.get("max_points") or spec_question.get("points"),
             "reason": score_detail.get("reason"),
+            "ai_flavor": score_detail.get("ai_flavor"),
         }
         answers.append(
             _build_review_answer_item(
@@ -1223,6 +1226,7 @@ def _serialize_attempt_detail(token: str, *, request: Request) -> dict[str, Any]
         "quiz_paper": _serialize_assignment_row(quiz_paper_row, request=request) if quiz_paper_row else None,
         "archive": archive,
         "review": _build_attempt_review(archive=archive, assignment=assignment),
+        "ai_flavor_threshold": int(AI_FLAVOR_THRESHOLD or 0),
     }
 
 

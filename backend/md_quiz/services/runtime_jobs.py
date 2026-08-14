@@ -578,6 +578,7 @@ def _archive_candidate_attempt(assignment: dict, *, spec: dict | None = None) ->
             "score": sd.get("score"),
             "score_max": sd.get("max") or (full_q.get("max_points") or full_q.get("points") or pub_q.get("max_points") or pub_q.get("points")),
             "reason": sd.get("reason"),
+            "ai_flavor": sd.get("ai_flavor"),
         }
         questions_out.append(item)
 
