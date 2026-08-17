@@ -78,6 +78,14 @@
       </template>
     </div>
 
+    <!-- 诚信答题提醒（QUIZ_INTEGRITY_NOTICE_ENABLED 控制，常驻；明暗主题自适应） -->
+    <div x-show="integrityNotice().enabled" class="border-t px-3 py-2.5" :class="pageTheme === 'light' ? 'border-slate-200' : 'border-white/10'">
+      <div class="flex items-start gap-2 rounded-lg border px-2.5 py-2" :class="pageTheme === 'light' ? 'border-amber-300 bg-amber-50' : 'border-amber-300/20 bg-amber-400/10'">
+        <span class="material-symbols-rounded text-sm leading-none" :class="pageTheme === 'light' ? 'text-amber-600' : 'text-amber-300'">verified_user</span>
+        <p class="min-w-0 text-[11px] leading-4" :class="pageTheme === 'light' ? 'text-amber-800' : 'text-amber-100/90'" x-text="integrityNotice().text"></p>
+      </div>
+    </div>
+
     <!-- status bar -->
     <div class="flex flex-col items-center gap-3 border-t border-white/10 px-3 py-4">
       <div class="flex flex-col items-center gap-1">

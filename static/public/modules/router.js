@@ -248,6 +248,10 @@ export function createPublicRouterModule() {
             this.viewCard = "unavailable";
           }
 
+          if (this.viewCard === "start") {
+            this.initIntegrityNotice();
+          }
+
           const question = this.currentQuestion();
           const answer = this.currentAnswer();
           if (question?.type === "short") {
@@ -392,5 +396,54 @@ export function createPublicRouterModule() {
             this.state = data || this.state;
             await this.syncFromState();
           },
+
+    integrityNotice() {
+      return (this.state && typeof this.state === "object" && this.state.integrity_notice) || {};
+    },
+
+    integrityAckKey() {
+      const token = String(this.state?.token || "").trim();
+      return `integrity_ack_${token || "unknown"}`;
+    },
+
+    initIntegrityNotice() {
+      const notice = this.integrityNotice();
+      if (this.integrityAckTimer) {
+        window.clearInterval(this.integrityAckTimer);
+        this.integrityAckTimer = null;
+      }
+      if (!notice.enabled) {
+        this.integrityAckEnabled = true;
+        this.integrityAcknowledged = true;
+        return;
+      }
+      if (sessionStorage.getItem(this.integrityAckKey()) === "1") {
+        this.integrityAckEnabled = true;
+        this.integrityAcknowledged = true;
+        return;
+      }
+      let secs = Math.max(0, Number(notice.min_seconds) || 5);
+      this.integrityAckCountdown = secs;
+      this.integrityAckEnabled = secs <= 0;
+      this.integrityAcknowledged = false;
+      if (secs <= 0) return;
+      this.integrityAckTimer = window.setInterval(() => {
+        secs -= 1;
+        this.integrityAckCountdown = secs;
+        if (secs <= 0) {
+          window.clearInterval(this.integrityAckTimer);
+          this.integrityAckTimer = null;
+          this.integrityAckEnabled = true;
+        }
+      }, 1000);
+    },
+
+    acknowledgeIntegrity() {
+      if (!this.integrityAckEnabled) return;
+      this.integrityAcknowledged = true;
+      try {
+        sessionStorage.setItem(this.integrityAckKey(), "1");
+      } catch (_e) { /* ignore quota/security errors */ }
+    },
   };
 }

@@ -36,5 +36,9 @@ export function createPublicState() {
     backGuardSkipToken: "",
     touchStart: null,
     fragmentCache: {},
+    integrityAckCountdown: 0,
+    integrityAckEnabled: false,
+    integrityAcknowledged: false,
+    integrityAckTimer: null,
   };
 }
