@@ -4989,6 +4989,7 @@ def count_admin_users() -> int:
     sql = "SELECT COUNT(*) AS cnt FROM admin_user"
     with conn_scope() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
             row = cur.fetchone()
     return dict(row)["cnt"] if row else 0
 
