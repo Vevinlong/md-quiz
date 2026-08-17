@@ -79,7 +79,9 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
             continue
 
         max_points = int(q.get("max_points") or q.get("points") or 0)
-        raw_total += max_points
+        is_bonus = bool(q.get("bonus"))
+        if not is_bonus:
+            raw_total += max_points
 
         if qtype in {"single", "multiple"}:
             if str(q.get("scoring") or "").strip().lower() == "completion":

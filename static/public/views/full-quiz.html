@@ -122,7 +122,8 @@
                 <div class="mb-1 flex flex-wrap items-center gap-2">
                   <span class="full-quiz--card-text text-sm font-bold text-slate-100/90" x-text="'Q' + (allQuestions().indexOf(question) + 1)"></span>
                   <span class="full-quiz--badge rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400" x-text="questionTypeLabel(question.type)"></span>
-                  <span class="text-[11px] text-slate-500" x-text="'(' + (question.points || question.max_points || 0) + '分)'"></span>
+                  <span x-show="!question.bonus" class="text-[11px] text-slate-500" x-text="'(' + (question.points || question.max_points || 0) + '分)'"></span>
+                  <span x-show="question.bonus" class="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">附加题</span>
                   <span x-show="questionStatus(question.qid) === 'answered'" class="ml-auto text-xs text-emerald-400">已作答</span>
                 </div>
 

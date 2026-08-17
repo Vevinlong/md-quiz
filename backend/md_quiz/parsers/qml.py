@@ -402,6 +402,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "rubric": rubric,
             "lang": str(attrs.get("lang") or "").strip().lower(),
             "llm": q_llm,
+            "bonus": bool(attrs.get("bonus", False)),
         }
 
         public_q = {
@@ -416,6 +417,7 @@ def parse_qml_markdown(markdown_text: str) -> tuple[dict[str, Any], dict[str, An
             "stem_md": stem_md,
             "options": [{"key": o["key"], "text": o["text"]} for o in options],
             "lang": q.get("lang", ""),
+            "bonus": bool(attrs.get("bonus", False)),
         }
         return q, public_q
 
