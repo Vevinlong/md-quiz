@@ -83,6 +83,7 @@
                         <div class="flex min-w-0 flex-wrap items-center gap-2">
                           <span class="text-[17px] font-black tracking-[-0.03em] text-slate-900" x-text="question.label || question.qid || ('Q' + (index + 1))"></span>
                           <span class="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700" x-text="questionTypeLabel(question.type)"></span>
+                          <span x-show="question.bonus" class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">附加题</span>
                           <span x-show="question.score_source === 'manual'" class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">人工评分</span>
                           <template x-if="canEditGrading() && question.review_kind !== 'traits'">
                             <div class="flex items-center gap-2">
@@ -229,6 +230,10 @@
                     <div x-show="attemptEvaluationShowScore()" class="rounded-[1.1rem] border border-blue-100 bg-blue-50/55 px-4 py-3">
                       <div class="text-[12px] font-semibold uppercase tracking-[0.18em] text-blue-700">总分</div>
                       <div class="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900" x-text="attemptReviewEvaluation().score_display || '-'"></div>
+                    </div>
+                    <div x-show="attemptReviewEvaluation().bonus_total" class="rounded-[1.1rem] border border-amber-200 bg-amber-50/60 px-4 py-3">
+                      <div class="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-700">附加题</div>
+                      <div class="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900" x-text="(attemptReviewEvaluation().bonus_scored || 0) + ' / ' + attemptReviewEvaluation().bonus_total"></div>
                     </div>
                     <div class="rounded-[1.1rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
                       <div class="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-500">结果模式</div>

@@ -346,6 +346,11 @@ def _build_review_answer_item(
     qid = str(raw_question.get("qid") or (spec_question or {}).get("qid") or "").strip()
     qtype = str(raw_question.get("type") or (spec_question or {}).get("type") or (public_question or {}).get("type") or "").strip()
     lang = str(raw_question.get("lang") or (spec_question or {}).get("lang") or (public_question or {}).get("lang") or "").strip().lower()
+    bonus = bool(
+        raw_question.get("bonus")
+        or (spec_question or {}).get("bonus")
+        or (public_question or {}).get("bonus")
+    )
     options = _normalize_review_options(raw_question.get("options"), spec_question=spec_question)
     review_kind = _review_question_kind(qtype, options)
     score = _coerce_int_or_none(raw_question.get("score"))
@@ -422,6 +427,7 @@ def _build_review_answer_item(
         "label": raw_question.get("label") or (spec_question or {}).get("label") or (public_question or {}).get("label") or qid,
         "type": qtype,
         "lang": lang,
+        "bonus": bonus,
         "review_kind": review_kind,
         "is_trait_question": review_kind == "traits",
         "max_points": max_points,
@@ -584,11 +590,15 @@ def _build_review_evaluation(
     score_max = _coerce_int_or_none(archive_data.get("score_max"))
     if score_max is None and isinstance(grading, dict):
         score_max = _coerce_int_or_none(grading.get("total_max"))
+    bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored")) if isinstance(grading, dict) else None
+    bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total")) if isinstance(grading, dict) else None
     # Recalculate total from answers when available — picks up manual overrides
     if isinstance(answers, list) and answers:
         recalc_total = 0
         recalc_max = 0
         has_any = False
+        recalc_bonus_scored = 0
+        recalc_bonus_total = 0
         for a in answers:
             if not isinstance(a, dict):
                 continue
@@ -599,13 +609,21 @@ def _build_review_evaluation(
                 if s is not None:
                     recalc_total += s
                     has_any = True
+                    if a.get("bonus"):
+                        recalc_bonus_scored += s
                 m = _coerce_int_or_none(a.get("score_max"))
                 if m is not None:
-                    recalc_max += m
+                    if a.get("bonus"):
+                        recalc_bonus_total += m
+                    else:
+                        recalc_max += m
         if has_any:
             total_score = recalc_total
         if recalc_max > 0:
             score_max = recalc_max
+        if recalc_bonus_total > 0:
+            bonus_total = recalc_bonus_total
+            bonus_scored = recalc_bonus_scored
     traits = archive_data.get("traits")
     if not isinstance(traits, dict) or not traits:
         traits = (grading.get("traits") or grading.get("trait_result") or {}) if isinstance(grading, dict) else {}
@@ -635,6 +653,8 @@ def _build_review_evaluation(
         "score_max": score_max,
         "has_score": has_score,
         "score_display": _score_display(total_score, score_max, result_mode=result_mode) if has_score else "",
+        "bonus_scored": int(bonus_scored or 0) if bonus_total else None,
+        "bonus_total": int(bonus_total or 0) if bonus_total else None,
         "final_analysis": raw_final,
         "candidate_remark": str(archive_data.get("candidate_remark") or assignment_data.get("candidate_remark") or "").strip(),
         "traits": traits,

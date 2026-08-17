@@ -68,6 +68,8 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
 
     raw_total = 0
     raw_scored = 0
+    bonus_total = 0
+    bonus_qids: set[str] = set()
     exam_llm = spec.get("llm") or {}
 
     for q in spec.get("questions", []):
@@ -80,7 +82,10 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
 
         max_points = int(q.get("max_points") or q.get("points") or 0)
         is_bonus = bool(q.get("bonus"))
-        if not is_bonus:
+        if is_bonus:
+            bonus_total += max_points
+            bonus_qids.add(qid)
+        else:
             raw_total += max_points
 
         if qtype in {"single", "multiple"}:
@@ -187,11 +192,19 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
         if qid and qid in subjective_details_by_qid:
             subjective_details.append(subjective_details_by_qid[qid])
 
+    bonus_scored = 0
+    if bonus_qids:
+        for item in objective_details + subjective_details:
+            if str(item.get("qid") or "") in bonus_qids:
+                bonus_scored += int(item.get("score") or 0)
+
     scored_result = {
         "objective": objective_details,
         "subjective": subjective_details,
         "total": int(raw_scored),
         "total_max": int(raw_total),
+        "bonus_total": int(bonus_total),
+        "bonus_scored": int(bonus_scored),
     }
     trait_result = grading_traits._aggregate_traits(spec, assignment, trait_questions)
 
@@ -234,6 +247,8 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
         "result_mode": result_mode,
         "raw_total": raw_total,
         "raw_scored": raw_scored,
+        "bonus_total": int(bonus_total),
+        "bonus_scored": int(bonus_scored),
         "total": total,
         "total_max": total_max,
         "overall_reason": overall_reason,
