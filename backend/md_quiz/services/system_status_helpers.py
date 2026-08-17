@@ -117,12 +117,17 @@ def _extract_host_label(raw: object, *, default: str = "") -> str:
 
 
 def _build_llm_integration_summary() -> dict[str, str]:
+    protocol = str(os.getenv("LLM_API_PROTOCOL") or "responses").strip().lower()
+    if protocol == "chat":
+        title = "OpenAI 兼容 Chat Completions API"
+    else:
+        title = "OpenAI 兼容 Responses API"
     model = str(os.getenv("OPENAI_MODEL") or "").strip()
     base_url = str(os.getenv("OPENAI_BASE_URL") or _DEFAULT_OPENAI_BASE_URL).strip()
     endpoint_host = _extract_host_label(base_url, default=_extract_host_label(_DEFAULT_OPENAI_BASE_URL))
     return {
-        "title": "OpenAI 兼容 Responses API",
-        "summary": f"模型 {_display_summary_value(model)} · 接口 {_display_summary_value(endpoint_host)}",
+        "title": title,
+        "summary": f"模型 {_display_summary_value(model)} · 接口 {_display_summary_value(endpoint_host)} · 协议 {protocol}",
     }
 
 
