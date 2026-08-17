@@ -7,7 +7,12 @@ from fastapi import APIRouter, Depends, Request, status
 from . import admin as shared
 from .deps import get_container
 from backend.md_quiz.config import BASE_DIR
-from backend.md_quiz.storage.db import get_admin_user_by_username, _check_admin_password
+from backend.md_quiz.storage.db import (
+    _check_admin_password,
+    _hash_admin_password,
+    get_admin_user_by_username,
+    update_admin_user_password,
+)
 
 router = APIRouter()
 
@@ -54,6 +59,23 @@ def session(request: Request):
         "username": request.session.get("admin_username"),
         "role": request.session.get("admin_role"),
     }
+
+
+@router.put("/session/password")
+def change_own_password(payload: shared.AdminUserChangeOwnPasswordPayload, request: Request):
+    """当前登录管理员自助修改自己的密码（任何角色可用，仅能改自己）。"""
+    shared._require_admin(request)
+    username = str(request.session.get("admin_username") or "").strip()
+    if not username:
+        raise shared.HTTPException(status_code=401, detail="未登录")
+    user = get_admin_user_by_username(username)
+    if not user:
+        raise shared.HTTPException(status_code=404, detail="账户不存在")
+    if not _check_admin_password(payload.old_password, user["password_hash"]):
+        raise shared.HTTPException(status_code=400, detail="原密码不正确")
+    new_hash = _hash_admin_password(payload.new_password)
+    update_admin_user_password(int(user["id"]), new_hash)
+    return {"ok": True}
 
 
 @router.get("/bootstrap")

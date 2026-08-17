@@ -47,6 +47,11 @@ class AdminUserUpdatePasswordPayload(BaseModel):
     password: str = Field(..., min_length=4)
 
 
+class AdminUserChangeOwnPasswordPayload(BaseModel):
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=4)
+
+
 class RuntimeConfigPatch(BaseModel):
     token_daily_threshold: int | None = Field(default=None, ge=0)
     sms_daily_threshold: int | None = Field(default=None, ge=0)

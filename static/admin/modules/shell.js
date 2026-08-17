@@ -257,6 +257,57 @@ export function createAdminShellModule() {
       }
     },
 
+    changePasswordOpen: false,
+    changePasswordBusy: false,
+    changePasswordError: "",
+    changePasswordForm: { old_password: "", new_password: "", confirm: "" },
+
+    showChangePassword() {
+      this.changePasswordForm = { old_password: "", new_password: "", confirm: "" };
+      this.changePasswordError = "";
+      this.changePasswordOpen = true;
+    },
+
+    closeChangePassword() {
+      if (this.changePasswordBusy) return;
+      this.changePasswordOpen = false;
+      this.changePasswordError = "";
+    },
+
+    async confirmChangePassword() {
+      const oldPwd = String(this.changePasswordForm?.old_password || "").trim();
+      const newPwd = String(this.changePasswordForm?.new_password || "").trim();
+      const confirmPwd = String(this.changePasswordForm?.confirm || "").trim();
+      if (!oldPwd) {
+        this.changePasswordError = "请输入原密码";
+        return;
+      }
+      if (newPwd.length < 4) {
+        this.changePasswordError = "新密码至少 4 位";
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        this.changePasswordError = "两次输入的新密码不一致";
+        return;
+      }
+      this.changePasswordBusy = true;
+      this.changePasswordError = "";
+      try {
+        await this.api("/api/admin/session/password", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
+        });
+        this.changePasswordOpen = false;
+        this.changePasswordForm = { old_password: "", new_password: "", confirm: "" };
+        this.showNotice("密码已修改");
+      } catch (e) {
+        this.changePasswordError = String(e?.message || "修改失败");
+      } finally {
+        this.changePasswordBusy = false;
+      }
+    },
+
     async logout() {
       this.destroyLogsChart();
       this.stopSyncPolling();
