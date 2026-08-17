@@ -123,8 +123,9 @@ export function createPublicFullQuizModule() {
 
     questionGroups() {
       const all = this.allQuestions();
-      const labelFor = (t) => {
-        const key = String(t || "").trim();
+      const labelFor = (q) => {
+        if (q.bonus) return "附加题";
+        const key = String(q.type || "").trim();
         if (key === "single" || key === "multiple") return "选择题";
         if (key === "short") return "简答题";
         if (key === "code") return "编程题";
@@ -136,20 +137,29 @@ export function createPublicFullQuizModule() {
         if (label === "简答题") return ["short"];
         if (label === "编程题") return ["code"];
         if (label === "量表题") return ["traits"];
+        if (label === "附加题") return [];
         return [];
       };
-      // 严格按源码顺序分段：连续同类型题组成一段，类型变化处切段
+      // 严格按源码顺序分段：连续同类型题组成一段，类型变化处切段；附加题独立成段
       const groups = [];
       for (const q of all) {
-        const label = labelFor(q.type);
+        const label = labelFor(q);
         const last = groups[groups.length - 1];
         if (last && last.label === label) {
           last.questions.push(q);
         } else {
-          groups.push({ label, types: typesFor(label), questions: [q] });
+          groups.push({ label, types: typesFor(label), questions: [q], isBonus: label === "附加题" });
         }
       }
       return groups;
+    },
+
+    groupHeaderSuffix(group) {
+      const count = group.questions?.length || 0;
+      if (group.isBonus) {
+        return `（共${count}题）`;
+      }
+      return `（共${count}题，${this.groupTotalPoints(group)}分）`;
     },
 
     answeredQids() {
