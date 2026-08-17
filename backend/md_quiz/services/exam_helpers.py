@@ -464,13 +464,25 @@ def build_render_ready_public_spec(
     return out
 
 
+def _is_already_versioned_asset(raw: str) -> bool:
+    return bool(str(raw or "").startswith("/quizzes/"))
+
+
 def _rewrite_text_assets_with_builder(text: str, make_url: Callable[[str], str]) -> str:
     out = str(text or "")
-    for p in _collect_md_assets(out):
-        out = out.replace(f"({p})", f"({make_url(p)})")
+    for match in list(_MD_IMAGE_RE.finditer(out)):
+        raw = str(match.group("path") or "").strip()
+        if _is_already_versioned_asset(raw):
+            continue
+        rel = _safe_relpath(raw)
+        if rel and _is_local_asset_path(rel):
+            out = out.replace(f"({raw})", f"({make_url(rel)})")
 
     def _replace_html_img(match: re.Match[str]) -> str:
-        rel = _safe_relpath(match.group("path"))
+        raw = str(match.group("path") or "").strip()
+        if _is_already_versioned_asset(raw):
+            return match.group(0)
+        rel = _safe_relpath(raw)
         if not rel or not _is_local_asset_path(rel):
             return match.group(0)
         before = match.group("before") or ""
@@ -497,6 +509,11 @@ def _rewrite_quiz_asset_paths_for_version(version_id: int, spec: dict, public_sp
                 q["media"] = make_url(media)
             if q.get("rubric") is not None:
                 q["rubric"] = _rewrite_text_assets_with_builder(str(q.get("rubric") or ""), make_url)
+            for option in q.get("options") or []:
+                if isinstance(option, dict) and option.get("text") is not None:
+                    option["text"] = _rewrite_text_assets_with_builder(
+                        str(option.get("text") or ""), make_url
+                    )
 
 
 def _quiz_payload_has_blank_option_text(payload: dict[str, Any]) -> bool:
@@ -643,9 +660,13 @@ def _resolve_quiz_asset_payload(quiz_key: str, relpath: str) -> tuple[bytes, str
 def _rewrite_quiz_asset_paths(quiz_key: str, spec: dict, public_spec: dict) -> None:
     def _rewrite_text_assets(text: str) -> str:
         out = str(text or "")
-        for p in _collect_md_assets(out):
-            asset_url = _asset_url(quiz_key, p)
-            out = out.replace(f"({p})", f"({asset_url})")
+        for match in list(_MD_IMAGE_RE.finditer(out)):
+            raw = str(match.group("path") or "").strip()
+            if _is_already_versioned_asset(raw):
+                continue
+            rel = _safe_relpath(raw)
+            if rel and _is_local_asset_path(rel):
+                out = out.replace(f"({raw})", f"({_asset_url(quiz_key, rel)})")
 
         def _replace_html_img(match: re.Match[str]) -> str:
             rel = _safe_relpath(match.group("path"))
@@ -670,10 +691,16 @@ def _rewrite_quiz_asset_paths(quiz_key: str, spec: dict, public_spec: dict) -> N
         q["stem_md"] = _rewrite_text_assets(str(q.get("stem_md") or ""))
         if q.get("rubric") is not None:
             q["rubric"] = _rewrite_text_assets(str(q.get("rubric") or ""))
+        for option in q.get("options") or []:
+            if isinstance(option, dict) and option.get("text") is not None:
+                option["text"] = _rewrite_text_assets(str(option.get("text") or ""))
     for q in (public_spec.get("questions") or []):
         q["stem_md"] = _rewrite_text_assets(str(q.get("stem_md") or ""))
         if q.get("rubric") is not None:
             q["rubric"] = _rewrite_text_assets(str(q.get("rubric") or ""))
+        for option in q.get("options") or []:
+            if isinstance(option, dict) and option.get("text") is not None:
+                option["text"] = _rewrite_text_assets(str(option.get("text") or ""))
 
 
 # 首次写入测验：解析 Markdown -> 落盘 source/spec/public -> 同步资源文件。

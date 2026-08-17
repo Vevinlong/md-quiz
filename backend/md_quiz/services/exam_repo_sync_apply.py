@@ -31,11 +31,14 @@ def _rewrite_asset_paths_for_version(version_id: int, spec: dict[str, Any], publ
     out_spec = copy.deepcopy(spec or {})
     out_public = copy.deepcopy(public_spec or {})
 
+    def _is_already_versioned(raw: str) -> bool:
+        return bool(str(raw or "").startswith("/quizzes/versions/")) or bool(_LEGACY_ASSET_URL_RE.match(raw or ""))
+
     def _rewrite_text(text: str) -> str:
         out = str(text or "")
         for match in list(_MD_IMAGE_RE.finditer(out)):
             raw_target = str(match.group("path") or "").strip()
-            if _LEGACY_ASSET_URL_RE.match(raw_target):
+            if _is_already_versioned(raw_target):
                 continue
             rel = _safe_relpath(raw_target)
             if rel and _is_local_asset_path(rel):
@@ -43,7 +46,7 @@ def _rewrite_asset_paths_for_version(version_id: int, spec: dict[str, Any], publ
 
         def _replace_html_img(match) -> str:
             raw_target = str(match.group("path") or "").strip()
-            if _LEGACY_ASSET_URL_RE.match(raw_target):
+            if _is_already_versioned(raw_target):
                 return match.group(0)
             rel = _safe_relpath(raw_target)
             if not rel or not _is_local_asset_path(rel):
@@ -78,6 +81,9 @@ def _rewrite_asset_paths_for_version(version_id: int, spec: dict[str, Any], publ
         for q in doc.get("questions") or []:
             stem = _rewrite_text(str(q.get("stem_md") or ""))
             rubric = _rewrite_text(str(q.get("rubric") or ""))
+            for option in q.get("options") or []:
+                if isinstance(option, dict) and option.get("text") is not None:
+                    option["text"] = _rewrite_text(str(option.get("text") or ""))
             media = _safe_relpath(str(q.get("media") or "").strip())
             media_match = _LEGACY_ASSET_URL_RE.match(str(q.get("media") or "").strip())
             if media_match:
