@@ -201,6 +201,12 @@ OPENAI_MODEL = settings.openai_model
 LLM_API_PROTOCOL = os.getenv("LLM_API_PROTOCOL", "responses").strip().lower()
 EXAM_REPO_SYNC_PROXY = settings.exam_repo_sync_proxy
 AI_FLAVOR_THRESHOLD = _env_int("AI_FLAVOR_THRESHOLD", 2, minimum=0)
+QUIZ_INTEGRITY_NOTICE_ENABLED = _env_bool("QUIZ_INTEGRITY_NOTICE_ENABLED", False)
+QUIZ_INTEGRITY_NOTICE_TEXT = os.getenv(
+    "QUIZ_INTEGRITY_NOTICE_TEXT",
+    "诚信答题：请遵守考试规则，基于自身真实情况独立作答。一旦被发现大量使用 AI 答题，将失去进入面试的资格。",
+).strip()
+QUIZ_INTEGRITY_NOTICE_MIN_SECONDS = _env_int("QUIZ_INTEGRITY_NOTICE_MIN_SECONDS", 5, minimum=0)
 
 
 __all__ = [
@@ -221,6 +227,9 @@ __all__ = [
     "OPENAI_BASE_URL",
     "OPENAI_MODEL",
     "PROJECT_ROOT",
+    "QUIZ_INTEGRITY_NOTICE_ENABLED",
+    "QUIZ_INTEGRITY_NOTICE_MIN_SECONDS",
+    "QUIZ_INTEGRITY_NOTICE_TEXT",
     "RuntimeConfigDefaults",
     "SECRET_KEY",
     "build_logger",

@@ -7,7 +7,12 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from backend.md_quiz.config import load_runtime_defaults
+from backend.md_quiz.config import (
+    QUIZ_INTEGRITY_NOTICE_ENABLED,
+    QUIZ_INTEGRITY_NOTICE_MIN_SECONDS,
+    QUIZ_INTEGRITY_NOTICE_TEXT,
+    load_runtime_defaults,
+)
 from backend.md_quiz.services import exam_helpers, runtime_bootstrap, runtime_jobs, support_deps as deps
 from backend.md_quiz.services import public_flow_service
 from backend.md_quiz.services.request_url_helpers import external_base_url
@@ -613,6 +618,7 @@ def _bootstrap_attempt(token: str, *, session_id: str = "") -> dict[str, Any]:
             "invite_window": _invite_window_payload(start_date, end_date),
             "quiz": _build_quiz_preview(assignment),
             "verify": _build_verify_payload(assignment, verify=verify, sms=sms, pending_profile=pending_profile, candidate_id=candidate_id),
+            "integrity_notice": _integrity_notice_payload(),
         }
 
     grading = assignment.get("grading") or {}
@@ -634,6 +640,7 @@ def _bootstrap_attempt(token: str, *, session_id: str = "") -> dict[str, Any]:
             "invite_window": _invite_window_payload(start_date, end_date),
             "quiz": _build_quiz_preview(assignment),
             "verify": _build_verify_payload(assignment, verify=verify, sms=sms, pending_profile=pending_profile, candidate_id=candidate_id),
+            "integrity_notice": _integrity_notice_payload(),
         }
 
     if status_text == "resume_pending" or candidate_id <= 0:
@@ -644,6 +651,7 @@ def _bootstrap_attempt(token: str, *, session_id: str = "") -> dict[str, Any]:
             "invite_window": _invite_window_payload(start_date, end_date),
             "quiz": _build_quiz_preview(assignment),
             "resume": _build_resume_payload(assignment, pending_profile=pending_profile, sms=sms),
+            "integrity_notice": _integrity_notice_payload(),
         }
 
     public_spec, quiz_metadata = _load_public_quiz_bundle(assignment)
@@ -671,6 +679,15 @@ def _bootstrap_attempt(token: str, *, session_id: str = "") -> dict[str, Any]:
         "assignment": _serialize_assignment_payload(assignment),
         "invite_window": _invite_window_payload(start_date, end_date),
         "quiz": _build_quiz_payload(assignment, public_spec, quiz_metadata),
+        "integrity_notice": _integrity_notice_payload(),
+    }
+
+
+def _integrity_notice_payload() -> dict[str, Any]:
+    return {
+        "enabled": bool(QUIZ_INTEGRITY_NOTICE_ENABLED),
+        "text": str(QUIZ_INTEGRITY_NOTICE_TEXT or "").strip(),
+        "min_seconds": int(QUIZ_INTEGRITY_NOTICE_MIN_SECONDS or 0),
     }
 
 
