@@ -123,11 +123,30 @@ export function createPublicFullQuizModule() {
 
     questionGroups() {
       const all = this.allQuestions();
+      const labelFor = (t) => {
+        const key = String(t || "").trim();
+        if (key === "single" || key === "multiple") return "选择题";
+        if (key === "short") return "简答题";
+        if (key === "code") return "编程题";
+        if (key === "traits") return "量表题";
+        return "其他";
+      };
+      const typesFor = (label) => {
+        if (label === "选择题") return ["single", "multiple"];
+        if (label === "简答题") return ["short"];
+        if (label === "编程题") return ["code"];
+        if (label === "量表题") return ["traits"];
+        return [];
+      };
+      // 严格按源码顺序分段：连续同类型题组成一段，类型变化处切段
       const groups = [];
-      for (const group of QUESTION_GROUPS) {
-        const qs = all.filter((q) => group.types.includes(String(q.type || "").trim()));
-        if (qs.length > 0) {
-          groups.push({ ...group, questions: qs });
+      for (const q of all) {
+        const label = labelFor(q.type);
+        const last = groups[groups.length - 1];
+        if (last && last.label === label) {
+          last.questions.push(q);
+        } else {
+          groups.push({ label, types: typesFor(label), questions: [q] });
         }
       }
       return groups;
