@@ -1029,20 +1029,6 @@ export function createAdminAssignmentsModule() {
         body: JSON.stringify(payload),
         headers: { "Content-Type": "application/json" },
       });
-      const inviteStartDate = String(payload.invite_start_date || "").trim();
-      const inviteEndDate = String(payload.invite_end_date || "").trim();
-      if (inviteStartDate) {
-        const currentStart = String(this.filters.assignments.start_from || "").trim();
-        if (!currentStart || currentStart > inviteStartDate) {
-          this.filters.assignments.start_from = inviteStartDate;
-        }
-      }
-      if (inviteEndDate) {
-        const currentEnd = String(this.filters.assignments.end_to || "").trim();
-        if (!currentEnd || currentEnd < inviteEndDate) {
-          this.filters.assignments.end_to = inviteEndDate;
-        }
-      }
       this.assignmentForm.ignore_timing = false;
       this.resetAssignmentCandidateSelection();
       const createdCount = Number(result?.created_count || (Array.isArray(result?.items) ? result.items.length : 1));

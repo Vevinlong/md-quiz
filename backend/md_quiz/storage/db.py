@@ -3601,6 +3601,8 @@ def _append_quiz_paper_filters(
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
     invite_end_to: str | None = None,
+    answer_from: str | None = None,
+    answer_to: str | None = None,
 ) -> None:
     q = str(query or "").strip()
     if q:
@@ -3642,6 +3644,16 @@ def _append_quiz_paper_filters(
     if invite_end_to:
         where.append("ep.invite_end_date <= %s::date")
         params.append(str(invite_end_to).strip())
+    # 答题时间筛选（按答题完成时间 finished_at）
+    answer_start = str(answer_from or "").strip()
+    if answer_start:
+        where.append("ep.finished_at >= %s::date")
+        params.append(answer_start)
+    answer_end = str(answer_to or "").strip()
+    if answer_end:
+        # 含当天：< 次日 0 点
+        where.append("ep.finished_at < (%s::date + INTERVAL '1 day')")
+        params.append(answer_end)
 
 
 def list_quiz_papers(
@@ -3654,6 +3666,8 @@ def list_quiz_papers(
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
     invite_end_to: str | None = None,
+    answer_from: str | None = None,
+    answer_to: str | None = None,
     limit: int | None = None,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
@@ -3693,6 +3707,8 @@ def list_quiz_papers(
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
         invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
     )
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -4684,6 +4700,8 @@ def count_quiz_papers(
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
     invite_end_to: str | None = None,
+    answer_from: str | None = None,
+    answer_to: str | None = None,
 ) -> int:
     sql = """
  SELECT COUNT(*)
@@ -4703,6 +4721,8 @@ def count_quiz_papers(
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
         invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
     )
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -4722,6 +4742,8 @@ def count_unhandled_finished_quiz_papers(
     invite_start_to: str | None = None,
     invite_end_from: str | None = None,
     invite_end_to: str | None = None,
+    answer_from: str | None = None,
+    answer_to: str | None = None,
 ) -> int:
     sql = """
  SELECT COUNT(*)
@@ -4741,6 +4763,8 @@ def count_unhandled_finished_quiz_papers(
         invite_start_to=invite_start_to,
         invite_end_from=invite_end_from,
         invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
     )
     sql += " WHERE " + " AND ".join(where)
     with conn_scope() as conn:

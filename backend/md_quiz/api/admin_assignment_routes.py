@@ -55,10 +55,10 @@ def get_assignments(
 ):
     shared._require_admin(request)
     per_page = 20
-    invite_start_from = str(start_from or "").strip() or None
-    invite_start_to = str(start_to or "").strip() or None
-    invite_end_from = str(end_from or "").strip() or None
-    invite_end_to = str(end_to or "").strip() or None
+    # 日期筛选语义：按答题完成时间（finished_at）。管理后台用 start_from/end_to
+    # 表示答题时间范围；邀约窗口期（invite_*）不再用于本列表的日期过滤。
+    answer_from = str(start_from or "").strip() or None
+    answer_to = str(end_to or "").strip() or None
     status_filter = shared.validation_helpers._normalize_exam_status(assignment_status)
     if status_filter not in {"invited", "verified", "in_quiz", "grading", "finished", "expired"}:
         status_filter = ""
@@ -71,20 +71,16 @@ def get_assignments(
         quiz_key=quiz_key_filter,
         status_filter=status_filter or None,
         handled_filter=handled_filter or None,
-        invite_start_from=invite_start_from,
-        invite_start_to=invite_start_to,
-        invite_end_from=invite_end_from,
-        invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
     )
     unhandled_finished_count = shared.deps.count_unhandled_finished_quiz_papers(
         query=q or None,
         quiz_key=quiz_key_filter,
         status_filter=status_filter or None,
         handled_filter=handled_filter or None,
-        invite_start_from=invite_start_from,
-        invite_start_to=invite_start_to,
-        invite_end_from=invite_end_from,
-        invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
     )
     total_pages = max(1, (total + per_page - 1) // per_page)
     current_page = max(1, min(int(page or 1), total_pages))
@@ -94,10 +90,8 @@ def get_assignments(
         quiz_key=quiz_key_filter,
         status_filter=status_filter or None,
         handled_filter=handled_filter or None,
-        invite_start_from=invite_start_from,
-        invite_start_to=invite_start_to,
-        invite_end_from=invite_end_from,
-        invite_end_to=invite_end_to,
+        answer_from=answer_from,
+        answer_to=answer_to,
         limit=per_page,
         offset=offset,
     )
