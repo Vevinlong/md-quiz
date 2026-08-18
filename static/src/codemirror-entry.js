@@ -244,7 +244,10 @@ export function createCodeMirror(container, options = {}) {
       wrapComp.of(wrap ? EditorView.lineWrapping : []),
       chromeComp.of(editorChrome),
       EditorView.updateListener.of((update) => {
-        if (update.changes) {
+        // 只用 docChanged 判定：reconfigureTheme/reconfigureEditorChrome 等只 dispatch
+        // 主题效果时，update.changes 仍是 truthy 的 ChangeSet（虽为空），会导致 onChange
+        // 被错误触发 → answers 被写成空串并触发多余保存。docChanged 才是"文档真的变了"。
+        if (update.docChanged) {
           const v = update.state.doc.toString();
           container._cmValue = v;
           if (typeof onChange === "function") onChange(v);
