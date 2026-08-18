@@ -173,9 +173,17 @@
                         <div class="min-w-0 flex-1">
                           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">邀约 URL</div>
                           <div class="mt-1 flex flex-wrap items-center gap-2">
-                            <button @click.stop="copyAssignmentUrl(item)" type="button" class="block min-w-0 max-w-full font-mono text-left text-xs text-slate-700 underline decoration-dotted underline-offset-2 transition hover:text-blue-700">
+                            <a
+                              @click.stop
+                              :href="item.url || undefined"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              :class="item.url
+                                ? 'block min-w-0 max-w-full font-mono text-left text-xs text-slate-700 underline decoration-dotted underline-offset-2 transition hover:text-blue-700'
+                                : 'block min-w-0 max-w-full cursor-default font-mono text-left text-xs text-slate-400'"
+                            >
                               <span class="break-all" x-text="item.url || '-'"></span>
-                            </button>
+                            </a>
                             <button @click.stop="copyAssignmentUrl(item)" type="button" class="shrink-0 rounded-xl border border-blue-100 bg-white px-2.5 py-1 text-[11px] font-medium text-blue-700 transition hover:bg-blue-50">复制</button>
                           </div>
                         </div>
