@@ -566,6 +566,13 @@
     color: #475569;
   }
 
+  .assignment-badge--phone {
+    border-color: rgba(2, 132, 199, 0.2);
+    background: rgba(224, 242, 254, 0.92);
+    color: #0369a1;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
   .assignment-action-group {
     display: inline-flex;
     flex-shrink: 0;

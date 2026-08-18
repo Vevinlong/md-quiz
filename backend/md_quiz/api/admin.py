@@ -1215,6 +1215,9 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     needs_attention = bool(status_key == "finished" and not handled_at)
     ai_flavor_suspect = _compute_ai_flavor_suspect(grading)
     answer_time = _answer_time_displays(row)
+    bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored"))
+    bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total"))
+    has_bonus = bool(bonus_total and bonus_total > 0)
     return {
         "attempt_id": int(row.get("attempt_id") or 0),
         "candidate_id": candidate_id,
@@ -1243,6 +1246,9 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
         "score_max": score_max,
         "score_display": _score_display(score, score_max, result_mode=result_mode),
         "result_mode": result_mode,
+        "bonus_scored": int(bonus_scored or 0) if has_bonus else None,
+        "bonus_total": int(bonus_total or 0) if has_bonus else None,
+        "has_bonus": has_bonus,
         "created_at": _iso_or_empty(row.get("created_at")),
         "url": f"{_admin_base_url(request)}/t/{token}" if token else "",
         "qr_url": f"/api/admin/assignments/{token}/qr.png" if token else "",

@@ -7,6 +7,7 @@ venv/
 .env
 ui/node_modules/
 tmp/
+scripts/tmp_*
 .codex
 To-Dos
 agentmem/
@@ -14,5 +15,4 @@ agentmem/
 *:Zone.Identifier
 
 # generated build artifacts
-static/version.json
 static/version.json
