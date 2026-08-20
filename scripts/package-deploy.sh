@@ -69,6 +69,8 @@ cp "$DEPLOY_SRC"/deploy-server.sh "$DEPLOY_SRC"/deploy-ubuntu24.md "$DEPLOY_SRC"
 cp "$PROJECT_ROOT/docker-compose.yml" "$DEPLOY_DIR/"
 cp "$PROJECT_ROOT/.env" "$DEPLOY_DIR/.env"
 cp /tmp/md-quiz.tar "$DEPLOY_DIR/md-quiz.tar"
+# 部署脚本必须有执行权限（服务器上 ./deploy-server.sh 直接执行）
+chmod +x "$DEPLOY_DIR"/deploy-server.sh
 
 echo "=== 3. SITE_BASE_URL 内网语义（保持注释） ==="
 # md-quiz/.env 里可能是注释状态，这里强制保证打包的 .env 是内网语义（不补域名）
