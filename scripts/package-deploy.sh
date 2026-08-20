@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # 依赖: /tmp/md-quiz.tar 已由 deploy.sh 构建导出（或手动 docker save md-quiz:local -o /tmp/md-quiz.tar）
 #
-# 产出: <工作区>/md-quiz-dkw-release-<ver>-<commit>.tar（自包含，含镜像+compose+.env+文档+部署脚本）
+# 产出: <工作区>/deploy-package.tar（固定名，自包含：镜像+compose+.env+文档+部署脚本；版本号在包内）
 # 组装来源: md-quiz/deploy/（git 静态源）+ md-quiz/.env + md-quiz/docker-compose.yml + /tmp/md-quiz.tar
 # 注意: deploy-package/ 每次由脚本全量重建，不要手工改它，改了也会被覆盖
 # 本地 md-quiz/.env 永远不会被修改（只读取复制）。
@@ -86,9 +86,10 @@ ls -lh "$DEPLOY_DIR"
 echo "SITE_BASE_URL: $(grep -c '^SITE_BASE_URL=' "$DEPLOY_DIR/.env" || true) 行生效（应为 0）"
 
 echo "=== 5. 重新打包（不压缩） ==="
-RELEASE_NAME="md-quiz-dkw-release-${IMAGE_VERSION}-${IMAGE_COMMIT}.tar"
-rm -f "$RELEASE_DIR"/md-quiz-dkw-release-*.tar
-rm -f "$RELEASE_DIR/deploy-package.tar"   # 兼容旧名（如被引用）
+# 固定包名不带版本，scp 命令永远不用改；版本号在包内（md-quiz.tar 的 version.json / deploy-server.sh 会打印）
+RELEASE_NAME="deploy-package.tar"
+rm -f "$RELEASE_DIR"/md-quiz-dkw-release-*.tar   # 清理旧带版本命名的包
+rm -f "$RELEASE_DIR/$RELEASE_NAME"
 tar -cf "$RELEASE_DIR/$RELEASE_NAME" -C "$WORKSPACE_ROOT" deploy-package/
 
 echo "=== 完成 ==="

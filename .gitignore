@@ -17,7 +17,8 @@ agentmem/
 # generated build artifacts
 static/version.json
 
-# 部署产物（deploy-package/ 与 release tar 在工作区 md-quiz-ssh/ 下，天然不在本仓库；
+# 部署产物（deploy-package/ 与 deploy-package.tar 在工作区 md-quiz-ssh/ 下，天然不在本仓库；
 # 此规则防御误复制进仓库的情况）
 md-quiz-dkw-release-*.tar
+deploy-package.tar
 deploy-package/

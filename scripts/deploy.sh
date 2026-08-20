@@ -126,12 +126,11 @@ cmd_server() {
   do_build
   echo "=== 5. 打内网自包含包 ==="
   bash "$SCRIPT_DIR/package-deploy.sh"
-  local release
-  release=$(ls -1t "$WORKSPACE_ROOT"/md-quiz-dkw-release-*.tar | head -1)
+  local release="$WORKSPACE_ROOT/deploy-package.tar"
   echo ""
   echo "=== 6. 内网部署命令（请手动执行） ==="
   echo "scp $release ${INTERNAL_USER}@${INTERNAL_HOST}:${INTERNAL_DIR}/"
-  echo "ssh ${INTERNAL_USER}@${INTERNAL_HOST} \"cd ${INTERNAL_DIR} && tar -xf \$(basename $release) && cd deploy-package && ./deploy-server.sh\""
+  echo "ssh ${INTERNAL_USER}@${INTERNAL_HOST} \"cd ${INTERNAL_DIR} && tar -xf deploy-package.tar && cd deploy-package && ./deploy-server.sh\""
 }
 
 cmd_cloud() {

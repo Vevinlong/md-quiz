@@ -29,20 +29,26 @@ curl http://localhost:8000/healthz
 
 详细步骤参考 `deploy-ubuntu24.md`。
 
-## 打包说明（重要）
+## 打包与发布（重要）
 
-打包命令统一用仓库根目录的 `../package-deploy.sh`：
+统一用 `scripts/deploy.sh`，不要再手动 cp 或单独跑 package-deploy.sh：
 
 ```bash
-# 阿里云公网部署（必须传正式域名，否则候选人收到 localhost/内网链接）
-cd /home/dkw/projects/md-quiz/md-quiz-ssh
-./package-deploy.sh onlinetest.dakewe.cn
+cd /home/dkw/projects/md-quiz/md-quiz-ssh/md-quiz
 
-# 内网 / 本地部署（不需要域名，保持注释，自动推断）
-./package-deploy.sh
+bash scripts/deploy.sh local      # 场景1: 构建 + 版本校验 + 本地跑起来
+bash scripts/deploy.sh server     # 场景2: 构建 + 校验 + 打内网包 + 打印 scp 命令
+bash scripts/deploy.sh cloud      # 场景3: 构建 + 校验 + 上传云端(env+镜像) + 重启 + 验证
+bash scripts/deploy.sh all        # 场景4: 上面三者顺序走（只构建一次）
 ```
 
-> **SITE_BASE_URL 关键点**：阿里云正式环境必须在 `.env` 中配置正式域名
-> （`SITE_BASE_URL=https://onlinetest.dakewe.cn`），否则生成的邀约链接 / 二维码
-> 会用 localhost 或内网 IP，候选人打不开。本地 / 内网保持注释即可。
-> `package-deploy.sh` 会自动处理，**不要手动直接 cp 本地 `.env`**。
+内网包固定名 `deploy-package.tar`（不带版本，版本号在包内 md-quiz.tar 的 version.json，deploy-server.sh 会打印），scp 命令永远不变：
+
+```bash
+scp /home/dkw/projects/md-quiz/md-quiz-ssh/md-quiz/deploy-package.tar dkw@192.168.181.33:/home/dkw/Download/md-quiz-release/
+ssh dkw@192.168.181.33 "cd /home/dkw/Download/md-quiz-release && tar -xf deploy-package.tar && cd deploy-package && ./deploy-server.sh"
+```
+
+> **SITE_BASE_URL 关键点**：云端部署走 IT 提供的 HTTP 接口（上传 env + 镜像 + 重启），
+> 上传的 `.env` 由 deploy.sh 自动配置 `SITE_BASE_URL=https://onlinetest.dakewe.cn`。
+> 内网包保持注释（自动推断域名）。**本地 `md-quiz/.env` 永不被脚本修改**。
