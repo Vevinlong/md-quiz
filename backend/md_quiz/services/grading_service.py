@@ -93,7 +93,9 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                 scored = _grade_completion(q, answers.get(qid))
             else:
                 scored = _grade_objective(q, answers.get(qid))
-            raw_scored += scored
+            # 普通题得分才进 raw_scored；附加题得分只进 bonus_scored（彻底分开）
+            if qid not in bonus_qids:
+                raw_scored += scored
             objective_details.append({"qid": qid, "score": scored, "max": max_points})
             continue
 
@@ -176,7 +178,8 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                     for item in result:
                         qid = str(item.get("qid") or "")
                         subjective_details_by_qid[qid] = item
-                        raw_scored += int(item.get("score") or 0)
+                        if qid not in bonus_qids:
+                            raw_scored += int(item.get("score") or 0)
                 else:
                     scored, reason, ai_flavor = result
                     spec_q = next((x for x in spec.get("questions", []) if x.get("qid") == label), {})
@@ -185,7 +188,8 @@ def grade_attempt(spec: dict[str, Any], assignment: dict[str, Any]) -> dict[str,
                         "qid": label, "score": scored, "max": max_pts, "reason": reason,
                         "ai_flavor": ai_flavor,
                     }
-                    raw_scored += scored
+                    if str(label) not in bonus_qids:
+                        raw_scored += scored
 
     for q in spec.get("questions", []):
         qid = str(q.get("qid") or "")

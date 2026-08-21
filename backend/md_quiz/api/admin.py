@@ -592,9 +592,7 @@ def _build_review_evaluation(
         score_max = _coerce_int_or_none(grading.get("total_max"))
     bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored")) if isinstance(grading, dict) else None
     bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total")) if isinstance(grading, dict) else None
-    # 加分制下 grading.total 已含附加题得分；前端「总分」只统计普通题，附加题单独展示 → 先扣掉
-    if total_score is not None and bonus_scored:
-        total_score = max(0, total_score - bonus_scored)
+    # 普通题得分（total）与附加题得分（bonus_scored）已在评分阶段彻底分开，此处无需再扣减
     # Recalculate total from answers when available — picks up manual overrides
     if isinstance(answers, list) and answers:
         recalc_total = 0
@@ -897,8 +895,6 @@ def _candidate_attempt_results(candidate: dict[str, Any]) -> list[dict[str, Any]
         score_max = archive.get("score_max")
         grading = archive.get("grading") if isinstance(archive.get("grading"), dict) else {}
         bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored")) if isinstance(grading, dict) else None
-        if score is not None and bonus_scored:
-            score = max(0, int(score) - bonus_scored)
         result_mode = str(
             archive.get("result_mode")
             or grading.get("result_mode")
@@ -1225,10 +1221,8 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored"))
     bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total"))
     has_bonus = bool(bonus_total and bonus_total > 0)
-    # DB score 列存的是加分制 total（含附加题得分）；列表「得分」只统计普通题，附加题单独徽标展示
+    # score 列即普通题得分（不含附加题）；附加题得分单独徽标展示（评分阶段已彻底分开）
     list_score = score
-    if has_bonus and list_score is not None:
-        list_score = max(0, int(list_score) - int(bonus_scored or 0))
     return {
         "attempt_id": int(row.get("attempt_id") or 0),
         "candidate_id": candidate_id,
@@ -1497,10 +1491,7 @@ def _quiz_analytics_score_meta(row: dict[str, Any], archive: dict[str, Any]) -> 
     score_max = _coerce_int_or_none(current_archive.get("score_max"))
     if score_max is None and isinstance(grading, dict):
         score_max = _coerce_int_or_none(grading.get("total_max"))
-    # 加分制下 total 含附加题得分；统计页「得分」只统计普通题，附加题不并入
-    bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored")) if isinstance(grading, dict) else None
-    if total_score is not None and bonus_scored:
-        total_score = max(0, total_score - bonus_scored)
+    # 普通题得分（total）与附加题得分（bonus_scored）已在评分阶段彻底分开，此处不再扣减
     return total_score, score_max, result_mode
 
 
