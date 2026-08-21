@@ -135,7 +135,7 @@ def generate_candidate_remark(
             remark = "。".join(sentences[:2]).strip()
             if remark and not remark.endswith(("。", "！", "？")):
                 remark += "。"
-            return remark[:160].rstrip()
+            return remark
 
     if result_mode in {"scored", "mixed"}:
         total = int(grading.get("total") or 0)
