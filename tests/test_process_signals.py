@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from backend.md_quiz.api import admin as admin_api
 from backend.md_quiz.api.public import _merge_process_signals
 
 
@@ -55,3 +56,26 @@ def test_merge_process_signals_ignores_non_dict_payload():
     _merge_process_signals(assignment, [{"qid": "Q1", "type": "short"}], None)
 
     assert assignment["process_signals"] == {"Q1": {"paste_count": 1}}
+
+
+def test_process_signal_flag_ignores_edit_duration_only():
+    assert admin_api._process_signal_flagged(
+        {"paste_count": 0, "chunk_inputs": [], "edit_duration_seconds": 3600, "tab_switches": []}
+    ) is False
+
+
+def test_process_signal_flag_requires_counting_facts():
+    assert admin_api._process_signal_flagged({"paste_count": 1, "chunk_inputs": [], "tab_switches": []}) is True
+    assert admin_api._process_signal_flagged({"paste_count": 0, "chunk_inputs": [{"chars": 132}], "tab_switches": []}) is True
+    assert admin_api._process_signal_flagged({"paste_count": 0, "chunk_inputs": [], "tab_switches": [{"at_sec": 3}]}) is True
+    assert admin_api._process_signal_flagged(None) is False
+
+
+def test_process_suspect_any_question_triggers_paper_flag():
+    signals = {
+        "Q1": {"paste_count": 0, "chunk_inputs": [], "tab_switches": []},
+        "Q2": {"paste_count": 1, "chunk_inputs": [], "tab_switches": []},
+    }
+
+    assert admin_api._process_suspect(signals) is True
+    assert admin_api._process_suspect({}) is False

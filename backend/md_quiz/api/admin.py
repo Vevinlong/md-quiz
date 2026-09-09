@@ -167,6 +167,28 @@ def _compute_ai_flavor_suspect(grading: dict[str, Any]) -> bool:
     return False
 
 
+def _process_signal_flagged(signal: Any) -> bool:
+    if not isinstance(signal, dict):
+        return False
+    try:
+        paste_count = max(0, int(signal.get("paste_count") or 0))
+    except (TypeError, ValueError):
+        paste_count = 0
+    chunk_inputs = signal.get("chunk_inputs")
+    tab_switches = signal.get("tab_switches")
+    return bool(
+        paste_count > 0
+        or (isinstance(chunk_inputs, list) and chunk_inputs)
+        or (isinstance(tab_switches, list) and tab_switches)
+    )
+
+
+def _process_suspect(signals: Any) -> bool:
+    if not isinstance(signals, dict):
+        return False
+    return any(_process_signal_flagged(signal) for signal in signals.values())
+
+
 def _parse_date_ymd(value: str) -> date | None:
     return validation_helpers._parse_date_ymd(value)
 
@@ -342,6 +364,7 @@ def _build_review_answer_item(
     spec_question: dict[str, Any] | None = None,
     public_question: dict[str, Any] | None = None,
     manual_override: dict[str, Any] | None = None,
+    process_signal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     qid = str(raw_question.get("qid") or (spec_question or {}).get("qid") or "").strip()
     qtype = str(raw_question.get("type") or (spec_question or {}).get("type") or (public_question or {}).get("type") or "").strip()
@@ -450,6 +473,8 @@ def _build_review_answer_item(
         "rubric": rubric,
         "rubric_html": rubric_html,
         "ai_flavor": ai_flavor,
+        "process_signal": dict(process_signal) if isinstance(process_signal, dict) else None,
+        "process_flag": _process_signal_flagged(process_signal),
     }
 
 
@@ -505,6 +530,11 @@ def _build_review_answers(
         for question in (((snapshot.get("public_spec") or {}).get("questions") or []))
         if isinstance(question, dict) and str(question.get("qid") or "").strip()
     }
+    process_signals: dict[str, Any] = {}
+    if isinstance(archive, dict) and isinstance(archive.get("process_signals"), dict):
+        process_signals = dict(archive["process_signals"])
+    if not process_signals and isinstance(assignment, dict) and isinstance(assignment.get("process_signals"), dict):
+        process_signals = dict(assignment["process_signals"])
     if isinstance(archive, dict) and isinstance(archive.get("questions"), list) and archive.get("questions"):
         grading_data = archive.get("grading") if isinstance(archive.get("grading"), dict) else {}
         manual_overrides = grading_data.get("manual_overrides") if isinstance(grading_data.get("manual_overrides"), dict) else {}
@@ -519,6 +549,7 @@ def _build_review_answers(
                     spec_question=spec_by_qid.get(qid),
                     public_question=public_by_qid.get(qid),
                     manual_override=manual_overrides.get(qid),
+                    process_signal=process_signals.get(qid),
                 )
             )
         return answers
@@ -554,6 +585,7 @@ def _build_review_answers(
                 spec_question=spec_question,
                 public_question=public_by_qid.get(qid),
                 manual_override=manual_overrides.get(qid),
+                process_signal=process_signals.get(qid),
             )
         )
     return answers
@@ -1217,6 +1249,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     handled_by = str(row.get("handled_by") or "").strip()
     needs_attention = bool(status_key == "finished" and not handled_at)
     ai_flavor_suspect = _compute_ai_flavor_suspect(grading)
+    process_suspect = _process_suspect((assignment or {}).get("process_signals"))
     answer_time = _answer_time_displays(row)
     bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored"))
     bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total"))
@@ -1247,6 +1280,7 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
         "handled_by": handled_by,
         "needs_attention": needs_attention,
         "ai_flavor_suspect": ai_flavor_suspect,
+        "process_suspect": process_suspect,
         "score": list_score,
         "score_max": score_max,
         "score_display": _score_display(list_score, score_max, result_mode=result_mode),
@@ -1287,6 +1321,10 @@ def _serialize_attempt_detail(token: str, *, request: Request) -> dict[str, Any]
         "archive": archive,
         "review": _build_attempt_review(archive=archive, assignment=assignment),
         "ai_flavor_threshold": int(AI_FLAVOR_THRESHOLD or 0),
+        "process_suspect": _process_suspect(
+            (archive or {}).get("process_signals")
+            or ((assignment or {}).get("process_signals") if isinstance(assignment, dict) else None)
+        ),
     }
 
 
