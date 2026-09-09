@@ -373,6 +373,62 @@ export function createAdminAssignmentsModule() {
       return classes.join(" ");
     },
 
+    attemptReviewProcessSignal(question) {
+      const signal = question?.process_signal;
+      return signal && typeof signal === "object" ? signal : {};
+    },
+
+    attemptReviewProcessFlagged(question) {
+      if (question?.process_flag === true) return true;
+      const signal = this.attemptReviewProcessSignal(question);
+      return Boolean(
+        Number(signal.paste_count || 0) > 0
+        || (Array.isArray(signal.chunk_inputs) && signal.chunk_inputs.length)
+        || (Array.isArray(signal.tab_switches) && signal.tab_switches.length)
+      );
+    },
+
+    attemptProcessSuspect() {
+      if (this.attemptDetail?.process_suspect) return true;
+      if (this.attemptDetail?.quiz_paper?.process_suspect) return true;
+      return this.attemptReviewAnswers().some((question) => this.attemptReviewProcessFlagged(question));
+    },
+
+    attemptProcessFlaggedCount() {
+      return this.attemptReviewAnswers().filter((question) => this.attemptReviewProcessFlagged(question)).length;
+    },
+
+    attemptProcessCount(question, key) {
+      const signal = this.attemptReviewProcessSignal(question);
+      if (key === "paste_count") {
+        return Math.max(0, Number(signal.paste_count || 0));
+      }
+      const list = Array.isArray(signal[key]) ? signal[key] : [];
+      return list.length;
+    },
+
+    attemptProcessEditDurationText(question) {
+      const seconds = Number(this.attemptReviewProcessSignal(question).edit_duration_seconds);
+      if (!Number.isFinite(seconds) || seconds < 0) return "—";
+      return this.formatAnswerTime(seconds) || "—";
+    },
+
+    attemptProcessChunkText(question) {
+      const items = this.attemptReviewProcessSignal(question).chunk_inputs;
+      if (!Array.isArray(items) || !items.length) return "";
+      return items
+        .map((item) => `第${Number(item?.at_sec || 0)}秒 +${Number(item?.chars || 0)}字`)
+        .join("；");
+    },
+
+    attemptProcessTabText(question) {
+      const items = this.attemptReviewProcessSignal(question).tab_switches;
+      if (!Array.isArray(items) || !items.length) return "";
+      return items
+        .map((item) => `第${Number(item?.at_sec || 0)}秒，离开${Number(item?.duration_sec || 0)}秒`)
+        .join("；");
+    },
+
     attemptReviewOptionIsSelected(question, option) {
       const key = String(option?.key || "").trim();
       return Boolean(key) && this.attemptReviewSelectedOptions(question).includes(key);
@@ -1046,6 +1102,7 @@ export function createAdminAssignmentsModule() {
         quiz_paper: data?.quiz_paper || {},
         archive: data?.archive || {},
         review: data?.review || { answers: [], evaluation: {} },
+        process_suspect: Boolean(data?.process_suspect || data?.quiz_paper?.process_suspect),
       };
       const nextStatus = this.assignmentStatusValue(this.attemptDetail?.quiz_paper);
       if (currentToken) {
