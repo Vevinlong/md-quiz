@@ -23,6 +23,7 @@
 - [REST API 约定](reference/api.md)
 - [MCP 能力说明](reference/mcp.md)
 - [AI 痕迹检测](reference/ai-flavor.md)
+- [答题过程监控](reference/process-monitoring.md)
 - [附加题（bonus）](reference/bonus-question.md)
 - [QML 测验格式](../skills/qml-authoring/references/qml-spec.md)
 
