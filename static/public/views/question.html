@@ -59,6 +59,7 @@
                   <textarea
                     x-model="textDraft"
                     @input="onTextInput"
+                    :data-process-qid="currentQuestion()?.qid"
                     class="block h-64 w-full rounded-none border-0 bg-transparent px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-slate-500"
                     placeholder="输入你的答案"
                   ></textarea>

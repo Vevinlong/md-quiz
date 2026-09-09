@@ -140,6 +140,7 @@ export function createPublicRouterModule() {
           },
 
           async init() {
+            this.initProcessSignals();
             if (!this._popstateHandler) {
               this._popstateHandler = (event) => {
                 this.handlePopState(event).catch((error) => {
@@ -218,7 +219,8 @@ export function createPublicRouterModule() {
             await this.loadAttempt(result.token);
           },
 
-    async syncFromState() {
+          async syncFromState() {
+          this.hydrateProcessSignalsFromState();
           this.clearAutosaveTimer();
           this.stopQuestionTimer();
           this.verifySubmitting = false;
@@ -301,6 +303,7 @@ export function createPublicRouterModule() {
                 CodeMirrorBundle.createCodeMirror(el, {
                   value: val, lang: lang, pageTheme: pageTheme, themeName: theme, wrap: wrap, minHeight: answerMinHeight,
                   onChange: function(v) {
+                    self.trackProcessInput(qid, v);
                     if (!self.state.assignment.answers) self.state.assignment.answers = {};
                     self.state.assignment.answers[qid] = v;
                     if (isFullQuiz) {

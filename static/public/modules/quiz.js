@@ -224,6 +224,7 @@ export function createPublicQuizModule() {
                   submit: Boolean(action.submit),
                   session_id: this.sessionId,
                   force_timeout: Boolean(action.forceTimeout),
+                  signals: this.processSignalsPayload([question.qid]),
                 }),
                 headers: { "Content-Type": "application/json" },
               });

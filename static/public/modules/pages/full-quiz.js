@@ -228,6 +228,7 @@ export function createPublicFullQuizModule() {
             advance: false,
             submit: false,
             session_id: this.sessionId,
+            signals: this.processSignalsPayload([qid]),
           }),
           headers: { "Content-Type": "application/json" },
         });
@@ -347,6 +348,7 @@ export function createPublicFullQuizModule() {
             advance: false,
             submit: true,
             session_id: this.sessionId,
+            signals: this.processSignalsPayload(),
           }),
           headers: { "Content-Type": "application/json" },
         });
