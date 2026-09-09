@@ -64,7 +64,7 @@
 // assignment.data.process_signals = { "<qid>": {
 //   "paste_count": 2,
 //   "chunk_inputs": [ { "at_sec": 12, "chars": 132 }, { "at_sec": 45, "chars": 238 } ],
-//   "ed​​it_start_ts": 1720000000,
+//   "edit_start_ts": 1720000000,
 //   "edit_duration_seconds": 108,
 //   "tab_switches": [ { "at_sec": 20, "duration_sec": 45 } ]
 // } }
@@ -76,10 +76,10 @@
 
 ```
 前端采集（input/paste/visibilitychange）→ 本地聚合到 process_signals[qid]
-  → 提交答​​案时附带 signals 字段
+  → 提交答案时附带 signals 字段
   → _apply_answer_action 落 assignment.data.process_signals
   → 判卷归档写入 archive.process_signals
-  → 判卷详情序列化透传 process_signals / process_summary
+  → 判卷详情序列化透传 process_signals / process_flag / process_suspect
   → 后台展示（答题卡片 / 评价汇总 / 题目头部 / 作答过程面板）
 ```
 
