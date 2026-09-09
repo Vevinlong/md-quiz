@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from backend.md_quiz.api import admin as admin_api
 from backend.md_quiz.api.public import _merge_process_signals
+from backend.md_quiz.services import runtime_jobs
 
 
 def test_merge_process_signals_normalizes_and_filters_by_question_type():
@@ -79,3 +80,64 @@ def test_process_suspect_any_question_triggers_paper_flag():
 
     assert admin_api._process_suspect(signals) is True
     assert admin_api._process_suspect({}) is False
+
+
+def test_archive_candidate_attempt_carries_process_signals(monkeypatch):
+    captured: dict = {}
+
+    monkeypatch.setattr(
+        runtime_jobs,
+        "get_candidate",
+        lambda candidate_id: {"id": candidate_id, "name": "候选人", "phone": "13800000001"},
+    )
+    monkeypatch.setattr(
+        runtime_jobs,
+        "save_quiz_archive",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    monkeypatch.setattr(
+        runtime_jobs,
+        "get_exam_snapshot_for_assignment",
+        lambda assignment: {
+            "spec": {"questions": [{"qid": "Q1", "type": "short", "max_points": 10}]},
+            "public_spec": {"questions": [{"qid": "Q1", "type": "short", "max_points": 10}]},
+        },
+    )
+
+    signals = {"Q1": {"paste_count": 1, "chunk_inputs": [], "tab_switches": []}}
+    runtime_jobs._archive_candidate_attempt(
+        {
+            "token": "archive-token",
+            "quiz_key": "demo-quiz",
+            "quiz_version_id": 7,
+            "candidate_id": 1,
+            "answers": {"Q1": "答案"},
+            "process_signals": signals,
+        },
+        spec={"questions": [{"qid": "Q1", "type": "short", "max_points": 10}]},
+    )
+
+    assert captured["archive"]["process_signals"] == signals
+
+
+def test_build_review_answers_attaches_process_signal_and_flag():
+    archive = {
+        "process_signals": {
+            "Q1": {"paste_count": 2, "chunk_inputs": [], "tab_switches": []}
+        },
+        "questions": [
+            {
+                "qid": "Q1",
+                "type": "short",
+                "stem_md": "题目",
+                "answer": "答案",
+                "score": 8,
+            }
+        ],
+    }
+
+    answers = admin_api._build_review_answers(archive=archive, assignment=None)
+
+    assert answers[0]["qid"] == "Q1"
+    assert answers[0]["process_signal"]["paste_count"] == 2
+    assert answers[0]["process_flag"] is True
