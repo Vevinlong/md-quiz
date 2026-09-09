@@ -164,9 +164,14 @@ export function createPublicProcessSignalsModule() {
           chunk_inputs: Array.isArray(signal.chunk_inputs) ? signal.chunk_inputs : [],
           tab_switches: Array.isArray(signal.tab_switches) ? signal.tab_switches : [],
         };
-        const duration = Number(signal.edit_duration_seconds);
-        if (Number.isFinite(duration) && duration > 0) {
-          this._processStartedAtMs[qid] = Date.now() - duration * 1000;
+        const startTs = Number(signal.edit_start_ts);
+        if (Number.isFinite(startTs) && startTs > 0) {
+          this._processStartedAtMs[qid] = startTs * 1000;
+        } else {
+          const duration = Number(signal.edit_duration_seconds);
+          if (Number.isFinite(duration) && duration > 0) {
+            this._processStartedAtMs[qid] = Date.now() - duration * 1000;
+          }
         }
         this._processLastValues[qid] = String(answers[qid] || "");
       }
@@ -181,6 +186,10 @@ export function createPublicProcessSignalsModule() {
           this.trackProcessInput(textarea.dataset.processQid, textarea.value);
         }
       };
+      this._processFocusHandler = (event) => {
+        const qid = this._processQidFromEvent(event);
+        if (qid) this.markProcessFocus(qid);
+      };
       this._processPasteHandler = (event) => {
         const qid = this._processQidFromEvent(event);
         if (qid) this.trackProcessPaste(qid);
@@ -188,6 +197,7 @@ export function createPublicProcessSignalsModule() {
       this._processVisibilityHandler = () => this.trackProcessVisibility();
       document.addEventListener("input", this._processInputHandler, true);
       document.addEventListener("paste", this._processPasteHandler, true);
+      document.addEventListener("focusin", this._processFocusHandler, true);
       document.addEventListener("visibilitychange", this._processVisibilityHandler);
     },
   };
