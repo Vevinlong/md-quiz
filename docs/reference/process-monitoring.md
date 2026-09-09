@@ -1,6 +1,6 @@
 # 答题过程监控（process_signals）
 
-> **状态：设计文档（待实现）。** 本文档记录立意阶段的设计方案与口径决策，作为后续实现的依据。
+> **状态：已实现（2026-09-09）。** 本文档记录设计方案与口径决策，代码已按五步实现并落测试。
 
 记录候选人在主观题（简答 `short`、编程 `code`）作答过程中的**客观行为信号**，辅助人工复核是否存在「复制粘贴 / 切屏查答案」等非自主作答行为。
 
@@ -83,16 +83,17 @@
   → 后台展示（答题卡片 / 评价汇总 / 题目头部 / 作答过程面板）
 ```
 
-## 代码位置（规划）
+## 代码位置
 
-- 前端采集器：`static/public/modules/process-signals.js`（新增）
-- 提交附带：`static/public/modules/quiz.js` `performAnswerAction`、`static/public/modules/pages/full-quiz.js` `saveAnswer` / `submit`
-- 后端落库：`backend/md_quiz/api/public.py` `_apply_answer_action`
+- 前端采集器：`static/public/modules/process-signals.js`
+- 提交附带：`static/public/modules/quiz.js` `performAnswerAction`、`static/public/modules/pages/full-quiz.js` `saveAnswer` / `confirmSubmit`
+- 后端落库：`backend/md_quiz/api/public.py` `_apply_answer_action` / `_merge_process_signals`
 - 归档透传：`backend/md_quiz/services/runtime_jobs.py` `_archive_candidate_attempt`
-- 详情透传：`backend/md_quiz/api/admin.py` `_serialize_attempt_detail` 及每题序列化
-- 展示：`static/admin/pages/attempt-detail.html`、`static/admin/modules/pages/assignments.js`
+- 详情透传与 flag：`backend/md_quiz/api/admin.py` `_build_review_answers` / `_serialize_assignment_row` / `_serialize_attempt_detail`
+- 展示：`static/admin/pages/attempt-detail.html`、`static/admin/pages/assignments.html`、`static/admin/modules/pages/assignments.js`
+- 测试：`tests/test_process_signals.py`
 
-## 前端显示位置（规划）
+## 前端显示位置
 
 - 后台 → 邀约与答题列表卡片：**过程** badge（`process_suspect`）。
 - 后台 → 答题详情头部 / 评价汇总：**过程** badge。
