@@ -48,6 +48,7 @@ class AnswerActionPayload(BaseModel):
     submit: bool = False
     session_id: str = ""
     force_timeout: bool = False
+    signals: dict[str, Any] | None = None
 
 
 def _public_base_url(request: Request) -> str:
@@ -450,6 +451,86 @@ def _answer_is_ready(question: dict[str, Any], answer: Any) -> bool:
     return bool(str(answer or "").strip())
 
 
+def _coerce_non_negative_int(value: Any) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_process_signal(qid: str, raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    signal = {
+        "paste_count": _coerce_non_negative_int(raw.get("paste_count")),
+        "chunk_inputs": [],
+        "edit_start_ts": None,
+        "edit_duration_seconds": None,
+        "tab_switches": [],
+    }
+    for item in raw.get("chunk_inputs") or []:
+        if not isinstance(item, dict):
+            continue
+        entry = {
+            "at_sec": _coerce_non_negative_int(item.get("at_sec")),
+            "chars": _coerce_non_negative_int(item.get("chars")),
+        }
+        if entry["chars"] > 0:
+            signal["chunk_inputs"].append(entry)
+    for item in raw.get("tab_switches") or []:
+        if not isinstance(item, dict):
+            continue
+        signal["tab_switches"].append(
+            {
+                "at_sec": _coerce_non_negative_int(item.get("at_sec")),
+                "duration_sec": _coerce_non_negative_int(item.get("duration_sec")),
+            }
+        )
+    if raw.get("edit_start_ts") is not None:
+        signal["edit_start_ts"] = _coerce_non_negative_int(raw.get("edit_start_ts"))
+    if raw.get("edit_duration_seconds") is not None:
+        signal["edit_duration_seconds"] = _coerce_non_negative_int(raw.get("edit_duration_seconds"))
+    if not (
+        signal["paste_count"]
+        or signal["chunk_inputs"]
+        or signal["tab_switches"]
+        or signal["edit_start_ts"] is not None
+        or signal["edit_duration_seconds"] is not None
+    ):
+        return None
+    return signal
+
+
+def _merge_process_signals(
+    assignment: dict[str, Any],
+    questions: list[dict[str, Any]],
+    raw: Any,
+) -> None:
+    if not isinstance(raw, dict):
+        return
+    trackable = {
+        str(question.get("qid") or "").strip(): question
+        for question in questions
+        if str(question.get("type") or "").strip() in {"short", "code"}
+    }
+    current = assignment.get("process_signals")
+    if not isinstance(current, dict):
+        current = {}
+    for raw_qid, raw_signal in raw.items():
+        qid = str(raw_qid or "").strip()
+        if not qid or qid not in trackable:
+            continue
+        normalized = _normalize_process_signal(qid, raw_signal)
+        if normalized is None:
+            current.pop(qid, None)
+        else:
+            current[qid] = normalized
+    if current:
+        assignment["process_signals"] = current
+    else:
+        assignment.pop("process_signals", None)
+
+
 def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     should_reload = False
@@ -499,6 +580,7 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
             pass
         elif is_full:
             # ── full 模式：保存答案，不推进题号，不检查 question_locked ──
+            _merge_process_signals(assignment, questions, action.signals)
             qid = str(action.question_id or "").strip()
             if qid:
                 normalized_answer = _normalize_answer_for_question(
@@ -524,6 +606,7 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
             if action.question_id and str(action.question_id or "").strip() != current_qid:
                 raise HTTPException(status_code=409, detail="question_locked")
 
+            _merge_process_signals(assignment, questions, action.signals)
             answers = assignment.setdefault("answers", {})
             if action.force_timeout:
                 answers.pop(current_qid, None)
@@ -890,6 +973,7 @@ async def public_save_answers_bulk(token: str, request: Request):
         question_id=question_id,
         answer=value,
         session_id=_normalize_public_session_id(body.get("session_id") if isinstance(body, dict) else ""),
+        signals=body.get("signals") if isinstance(body, dict) else None,
     )
     session_id = _normalize_public_session_id(payload.session_id or _session_id_from_request(request))
     return _apply_answer_action(token, payload, session_id=session_id)
