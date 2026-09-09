@@ -118,6 +118,14 @@ def create_app() -> FastAPI:
             or path.startswith("/admin/")
             or path.startswith("/static/admin/")
             or path == "/static/assets/js/shared/runtime.js"
+            or path.startswith("/t/")
+            or path.startswith("/p/")
+            or path.startswith("/resume/")
+            or path.startswith("/quiz/")
+            or path.startswith("/exam/")
+            or path.startswith("/done/")
+            or path.startswith("/a/")
+            or path.startswith("/static/public/")
         ):
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Pragma"] = "no-cache"
