@@ -132,6 +132,9 @@ def test_process_signal_flag_requires_counting_facts():
 
 def test_public_process_signal_timing_contract():
     source = (ROOT / "static" / "public" / "modules" / "process-signals.js").read_text(encoding="utf-8")
+    helper_start = source.index("_processPaperStartMs()")
+    helper_end = source.index("markProcessFocus(qid)", helper_start)
+    helper_block = source[helper_start:helper_end]
     input_start = source.index("trackProcessInput(qid, rawValue)")
     input_end = source.index("trackProcessPaste(qid)", input_start)
     input_block = source[input_start:input_end]
@@ -141,7 +144,12 @@ def test_public_process_signal_timing_contract():
 
     assert "if (!this._processStartedAtMs[qid] && (value || previous))" in input_block
     assert "this._ensureProcessSignal(qid);" in input_block
-    assert "at_sec: this._processSecondsSinceEngagement(qid)" in visibility_block
+    assert "this.state?.assignment?.timing?.start_at || this.state?.quiz?.entered_at" in helper_block
+    assert "Date.parse" in helper_block
+    assert "at_sec: this._processSecondsSincePaperStart()" in input_block
+    assert "at_sec: this._processSecondsSincePaperStart()" in visibility_block
+    assert "_processEngagementAtMs" not in source
+    assert "editDurationSeconds: this._processSecondsSinceStart(qid)" in input_block
 
 
 def test_public_process_summary_hydration_contract():

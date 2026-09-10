@@ -1,5 +1,5 @@
 const PROCESS_DEBUG_ON_VALUES = new Set(["1", "true", "yes", "on"]);
-const PROCESS_DEBUG_VERSION = "20260910-3";
+const PROCESS_DEBUG_VERSION = "20260910-4";
 
 export function createPublicProcessSignalsModule() {
   return {
@@ -7,7 +7,7 @@ export function createPublicProcessSignalsModule() {
     _processSignals: {},
     _processLastValues: {},
     _processStartedAtMs: {},
-    _processEngagementAtMs: {},
+    _processPaperStartedAtMs: null,
     _processUnattributedTabSwitchCount: 0,
     _processHiddenQid: "",
     _processHiddenAtMs: null,
@@ -95,6 +95,8 @@ export function createPublicProcessSignalsModule() {
         localSignalKeys: this._processDebugSignalKeys(this._processSignals),
         processSummary: this.state?.assignment?.process_summary ?? null,
         hydrated: Boolean(this._processHydrated),
+        paperStartPresent: Boolean(this._processPaperStartMs()),
+        paperElapsedSeconds: this._processSecondsSincePaperStart(),
       });
     },
 
@@ -128,8 +130,18 @@ export function createPublicProcessSignalsModule() {
       return Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     },
 
-    _processSecondsSinceEngagement(qid) {
-      const startedAt = this._processEngagementAtMs[qid];
+    _processPaperStartMs() {
+      if (this._processPaperStartedAtMs) return this._processPaperStartedAtMs;
+      const raw = this.state?.assignment?.timing?.start_at || this.state?.quiz?.entered_at || "";
+      const parsed = Date.parse(String(raw || ""));
+      if (Number.isFinite(parsed)) {
+        this._processPaperStartedAtMs = parsed;
+      }
+      return this._processPaperStartedAtMs;
+    },
+
+    _processSecondsSincePaperStart() {
+      const startedAt = this._processPaperStartMs();
       if (!startedAt) return 0;
       return Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     },
@@ -138,9 +150,6 @@ export function createPublicProcessSignalsModule() {
       if (!this._processTrackable(qid)) return;
       qid = String(qid || "");
       this._processCurrentQid = qid;
-      if (!this._processEngagementAtMs[qid]) {
-        this._processEngagementAtMs[qid] = Date.now();
-      }
     },
 
     trackProcessInput(qid, rawValue) {
@@ -151,9 +160,6 @@ export function createPublicProcessSignalsModule() {
       const previous = String(this._processLastValues[qid] || "");
       this._processCurrentQid = qid;
 
-      if (!this._processEngagementAtMs[qid]) {
-        this._processEngagementAtMs[qid] = Date.now();
-      }
       if (!this._processStartedAtMs[qid] && (value || previous)) {
         this._processStartedAtMs[qid] = Date.now();
         this._ensureProcessSignal(qid);
@@ -162,7 +168,7 @@ export function createPublicProcessSignalsModule() {
       const delta = value.length - previous.length;
       if (delta > 0 && delta >= 20) {
         this._ensureProcessSignal(qid).chunk_inputs.push({
-          at_sec: this._processSecondsSinceStart(qid),
+          at_sec: this._processSecondsSincePaperStart(),
           chars: delta,
         });
       }
@@ -176,7 +182,8 @@ export function createPublicProcessSignalsModule() {
         chunkRecorded: delta > 0 && delta >= 20,
         editStartTs: this._processStartedAtMs[qid] ? Math.floor(this._processStartedAtMs[qid] / 1000) : null,
         editDurationSeconds: this._processSecondsSinceStart(qid),
-        engagementDurationSeconds: this._processSecondsSinceEngagement(qid),
+        paperElapsedSeconds: this._processSecondsSincePaperStart(),
+        paperStartPresent: Boolean(this._processPaperStartMs()),
       });
     },
 
@@ -190,6 +197,8 @@ export function createPublicProcessSignalsModule() {
         qid: String(qid || ""),
         type: String(question.type || ""),
         pasteCount: signal.paste_count,
+        paperElapsedSeconds: this._processSecondsSincePaperStart(),
+        paperStartPresent: Boolean(this._processPaperStartMs()),
       });
     },
 
@@ -238,6 +247,8 @@ export function createPublicProcessSignalsModule() {
         hidden,
         currentQid: String(this._processCurrentQid || ""),
         fallbackQid: qid,
+        paperElapsedSeconds: this._processSecondsSincePaperStart(),
+        paperStartPresent: Boolean(this._processPaperStartMs()),
       });
       if (hidden) {
         if (!qid) {
@@ -247,12 +258,9 @@ export function createPublicProcessSignalsModule() {
           });
           return;
         }
-        if (!this._processEngagementAtMs[qid]) {
-          this._processEngagementAtMs[qid] = Date.now();
-        }
         const signal = this._ensureProcessSignal(qid);
         signal.tab_switches.push({
-          at_sec: this._processSecondsSinceEngagement(qid),
+          at_sec: this._processSecondsSincePaperStart(),
           duration_sec: 0,
         });
         this._processHiddenQid = qid;
@@ -347,6 +355,7 @@ export function createPublicProcessSignalsModule() {
           storedSignalKeys: [],
           processSummary: summary ?? null,
           unattributedTabSwitchCount: this._processUnattributedTabSwitchCount,
+          paperStartPresent: Boolean(this._processPaperStartMs()),
         });
         return;
       }
@@ -380,6 +389,7 @@ export function createPublicProcessSignalsModule() {
         hydratedSignalKeys: Object.keys(this._processSignals),
         processSummary: summary ?? null,
         unattributedTabSwitchCount: this._processUnattributedTabSwitchCount,
+        paperStartPresent: Boolean(this._processPaperStartMs()),
       });
     },
 
