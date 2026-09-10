@@ -93,6 +93,28 @@
 - 展示：`static/admin/pages/attempt-detail.html`、`static/admin/pages/assignments.html`、`static/admin/modules/pages/assignments.js`
 - 测试：`tests/test_process_signals.py`
 
+## 前端调试
+
+调试日志默认关闭。排查时可在候选人端 URL 后追加 `?process_debug=1`，或先在浏览器 Console 执行：
+
+```js
+localStorage.setItem("md-quiz-process-debug", "1");
+location.reload();
+```
+
+开启后 Console 输出统一前缀 `[process-signals]`，覆盖：
+
+- `init` / `state` / `hydrate`：监听器、题型识别、已有信号恢复。
+- `input` / `paste` / `visibility`：输入长度、净增字数、粘贴计数、切屏归属。
+- `snapshot` / `payload`：本地快照和随请求携带的 `signals`。
+- `linear-answer-*` / `full-save-*` / `full-submit-*` / `attempt-response`：请求前后与服务端回读。
+
+日志只包含 qid、题型、字符数、计数和时间，不输出答案内容。排查完成后可执行：
+
+```js
+localStorage.removeItem("md-quiz-process-debug");
+```
+
 ## 前端显示位置
 
 - 后台 → 邀约与答题列表卡片：**过程** badge（`process_suspect`）。

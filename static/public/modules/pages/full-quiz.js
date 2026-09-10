@@ -220,18 +220,24 @@ export function createPublicFullQuizModule() {
       if (!qid) return;
       this.actionBusy = true;
       try {
-        await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
+        const body = {
+          question_id: qid,
+          answer: value,
+          advance: false,
+          submit: false,
+          session_id: this.sessionId,
+          signals: this.processSignalsPayload([qid]),
+        };
+        this.logProcessSignalsRequest("full-save-request", body);
+        const data = await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
           method: "POST",
-          body: JSON.stringify({
-            question_id: qid,
-            answer: value,
-            advance: false,
-            submit: false,
-            session_id: this.sessionId,
-            signals: this.processSignalsPayload([qid]),
-          }),
+          body: JSON.stringify(body),
           headers: { "Content-Type": "application/json" },
         });
+        this.logProcessSignalsResponse("full-save-response", data);
+      } catch (error) {
+        this._processDebug("full-save-error", { qid, message: String(error?.message || "") });
+        throw error;
       } finally {
         this.actionBusy = false;
       }
@@ -340,19 +346,24 @@ export function createPublicFullQuizModule() {
         this._codeMirrorSaveTimers = {};
       }
       try {
+        const body = {
+          question_id: "",
+          answer: null,
+          advance: false,
+          submit: true,
+          session_id: this.sessionId,
+          signals: this.processSignalsPayload(),
+        };
+        this.logProcessSignalsRequest("full-submit-request", body);
         await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
           method: "POST",
-          body: JSON.stringify({
-            question_id: "",
-            answer: null,
-            advance: false,
-            submit: true,
-            session_id: this.sessionId,
-            signals: this.processSignalsPayload(),
-          }),
+          body: JSON.stringify(body),
           headers: { "Content-Type": "application/json" },
         });
         await this.loadAttempt(this.route.token);
+      } catch (error) {
+        this._processDebug("full-submit-error", { message: String(error?.message || "") });
+        throw error;
       } finally {
         this.confirmSubmitLoading = false;
         this.confirmSubmitVisible = false;

@@ -221,6 +221,7 @@ export function createPublicRouterModule() {
 
           async syncFromState() {
           this.hydrateProcessSignalsFromState();
+          this.logProcessSignalsState("state");
           this.clearAutosaveTimer();
           this.stopQuestionTimer();
           this.verifySubmitting = false;
@@ -396,6 +397,7 @@ export function createPublicRouterModule() {
 
           async loadAttempt(token) {
             const data = await this.api(`/api/public/attempt/${encodeURIComponent(token)}`);
+            this.logProcessSignalsResponse("attempt-response", data);
             this.state = data || this.state;
             await this.syncFromState();
           },

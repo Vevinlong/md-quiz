@@ -215,23 +215,27 @@ export function createPublicQuizModule() {
             if (!question || !this.route.token) return;
             this.actionBusy = true;
             try {
+              const body = {
+                question_id: question.qid,
+                answer: this.currentAnswerPayload(),
+                advance: Boolean(action.advance),
+                submit: Boolean(action.submit),
+                session_id: this.sessionId,
+                force_timeout: Boolean(action.forceTimeout),
+                signals: this.processSignalsPayload([question.qid]),
+              };
+              this.logProcessSignalsRequest("linear-answer-request", body);
               const data = await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
                 method: "POST",
-                body: JSON.stringify({
-                  question_id: question.qid,
-                  answer: this.currentAnswerPayload(),
-                  advance: Boolean(action.advance),
-                  submit: Boolean(action.submit),
-                  session_id: this.sessionId,
-                  force_timeout: Boolean(action.forceTimeout),
-                  signals: this.processSignalsPayload([question.qid]),
-                }),
+                body: JSON.stringify(body),
                 headers: { "Content-Type": "application/json" },
               });
+              this.logProcessSignalsResponse("linear-answer-response", data);
               this.state = data;
               await this.syncFromState();
             } catch (error) {
               const detail = String(error?.message || "");
+              this._processDebug("linear-answer-error", { message: detail });
               if (["question_locked", "already_submitted", "not_last_question"].includes(detail) && this.route.token) {
                 await this.loadAttempt(this.route.token);
               }
