@@ -1,5 +1,5 @@
 const PROCESS_DEBUG_ON_VALUES = new Set(["1", "true", "yes", "on"]);
-const PROCESS_DEBUG_VERSION = "20260910-1";
+const PROCESS_DEBUG_VERSION = "20260910-2";
 
 export function createPublicProcessSignalsModule() {
   return {
@@ -7,6 +7,7 @@ export function createPublicProcessSignalsModule() {
     _processSignals: {},
     _processLastValues: {},
     _processStartedAtMs: {},
+    _processEngagementAtMs: {},
     _processHiddenQid: "",
     _processHiddenAtMs: null,
     _processHydrated: false,
@@ -123,9 +124,19 @@ export function createPublicProcessSignalsModule() {
       return Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     },
 
+    _processSecondsSinceEngagement(qid) {
+      const startedAt = this._processEngagementAtMs[qid];
+      if (!startedAt) return 0;
+      return Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    },
+
     markProcessFocus(qid) {
       if (!this._processTrackable(qid)) return;
-      this._processCurrentQid = String(qid || "");
+      qid = String(qid || "");
+      this._processCurrentQid = qid;
+      if (!this._processEngagementAtMs[qid]) {
+        this._processEngagementAtMs[qid] = Date.now();
+      }
     },
 
     trackProcessInput(qid, rawValue) {
@@ -136,8 +147,12 @@ export function createPublicProcessSignalsModule() {
       const previous = String(this._processLastValues[qid] || "");
       this._processCurrentQid = qid;
 
-      if (value && !this._processStartedAtMs[qid]) {
+      if (!this._processEngagementAtMs[qid]) {
+        this._processEngagementAtMs[qid] = Date.now();
+      }
+      if (!this._processStartedAtMs[qid] && (value || previous)) {
         this._processStartedAtMs[qid] = Date.now();
+        this._ensureProcessSignal(qid);
       }
 
       const delta = value.length - previous.length;
@@ -157,6 +172,7 @@ export function createPublicProcessSignalsModule() {
         chunkRecorded: delta > 0 && delta >= 20,
         editStartTs: this._processStartedAtMs[qid] ? Math.floor(this._processStartedAtMs[qid] / 1000) : null,
         editDurationSeconds: this._processSecondsSinceStart(qid),
+        engagementDurationSeconds: this._processSecondsSinceEngagement(qid),
       });
     },
 
@@ -214,9 +230,12 @@ export function createPublicProcessSignalsModule() {
       });
       if (hidden) {
         if (!qid) return;
+        if (!this._processEngagementAtMs[qid]) {
+          this._processEngagementAtMs[qid] = Date.now();
+        }
         const signal = this._ensureProcessSignal(qid);
         signal.tab_switches.push({
-          at_sec: this._processSecondsSinceStart(qid),
+          at_sec: this._processSecondsSinceEngagement(qid),
           duration_sec: 0,
         });
         this._processHiddenQid = qid;

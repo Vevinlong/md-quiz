@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from backend.md_quiz.api import admin as admin_api
 from backend.md_quiz.api.public import _merge_process_signals
 from backend.md_quiz.services import runtime_jobs
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_merge_process_signals_normalizes_and_filters_by_question_type():
@@ -70,6 +75,20 @@ def test_process_signal_flag_requires_counting_facts():
     assert admin_api._process_signal_flagged({"paste_count": 0, "chunk_inputs": [{"chars": 132}], "tab_switches": []}) is True
     assert admin_api._process_signal_flagged({"paste_count": 0, "chunk_inputs": [], "tab_switches": [{"at_sec": 3}]}) is True
     assert admin_api._process_signal_flagged(None) is False
+
+
+def test_public_process_signal_timing_contract():
+    source = (ROOT / "static" / "public" / "modules" / "process-signals.js").read_text(encoding="utf-8")
+    input_start = source.index("trackProcessInput(qid, rawValue)")
+    input_end = source.index("trackProcessPaste(qid)", input_start)
+    input_block = source[input_start:input_end]
+    visibility_start = source.index("trackProcessVisibility()")
+    visibility_end = source.index("processSignalSnapshot(qid)", visibility_start)
+    visibility_block = source[visibility_start:visibility_end]
+
+    assert "if (!this._processStartedAtMs[qid] && (value || previous))" in input_block
+    assert "this._ensureProcessSignal(qid);" in input_block
+    assert "at_sec: this._processSecondsSinceEngagement(qid)" in visibility_block
 
 
 def test_process_suspect_any_question_triggers_paper_flag():
