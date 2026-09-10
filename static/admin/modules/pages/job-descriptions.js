@@ -92,7 +92,14 @@ export function createAdminJobDescriptionsModule() {
     },
 
     jobDescriptionRelatedQuizOptions() {
-      return this.quizOptionItems();
+      const options = this.quizOptionItems();
+      const availableKeys = new Set(
+        options.map((item) => String(item?.quiz_key || "").trim()).filter(Boolean),
+      );
+      const missingOptions = this.normalizeJobDescriptionRelatedQuizzes(this.jobDescriptionForm?.related_quizzes)
+        .filter((quizKey) => !availableKeys.has(quizKey))
+        .map((quizKey) => ({ quiz_key: quizKey, title: quizKey, missing: true }));
+      return [...options, ...missingOptions];
     },
 
     jobDescriptionRelatedQuizSelected(quizKey) {
@@ -112,9 +119,26 @@ export function createAdminJobDescriptionsModule() {
       }
     },
 
+    jobDescriptionRelatedQuizClass(quiz) {
+      const selected = this.jobDescriptionRelatedQuizSelected(quiz?.quiz_key);
+      const classes = ["flex min-w-0 items-start gap-2 rounded-lg border px-3 py-2 text-sm transition"];
+      if (selected && Boolean(quiz?.missing)) {
+        classes.push("border-amber-300 bg-amber-50/80 text-amber-800");
+      } else if (selected) {
+        classes.push("border-blue-300 bg-blue-50/80 text-blue-800");
+      } else {
+        classes.push("border-blue-100 bg-white/80 text-slate-700 hover:bg-blue-50/45");
+      }
+      return classes.join(" ");
+    },
+
     jobDescriptionRelatedQuizLabels() {
       return this.normalizeJobDescriptionRelatedQuizzes(this.jobDescriptionForm?.related_quizzes)
-        .map((quizKey) => this.quizOptionLabel(quizKey) || quizKey)
+        .map((quizKey) => {
+          const option = this.quizOptionByKey(quizKey);
+          if (!option) return `${quizKey}（已失效）`;
+          return String(option.title || option.quiz_key || quizKey).trim();
+        })
         .filter(Boolean);
     },
 

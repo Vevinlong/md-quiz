@@ -259,3 +259,16 @@ def test_admin_job_descriptions_route_nav_and_page_exist() -> None:
     assert "jobDescriptionReadOnly()" in page_source
     assert "/api/admin/job-descriptions" in module_source
     assert "仓库来源职位请在 Git 仓库中修改" in module_source
+
+
+def test_admin_job_descriptions_expose_missing_related_quiz_options() -> None:
+    page_source = (ROOT / "static" / "admin" / "pages" / "job-descriptions.html").read_text(encoding="utf-8")
+    module_source = (ROOT / "static" / "admin" / "modules" / "pages" / "job-descriptions.js").read_text(encoding="utf-8")
+
+    assert "const availableKeys = new Set" in module_source
+    assert ".filter((quizKey) => !availableKeys.has(quizKey))" in module_source
+    assert "{ quiz_key: quizKey, title: quizKey, missing: true }" in module_source
+    assert "jobDescriptionRelatedQuizClass" in module_source
+    assert "`${quizKey}（已失效）`" in module_source
+    assert "已失效测验" in page_source
+    assert "@change=\"toggleJobDescriptionRelatedQuiz(quiz.quiz_key)\"" in page_source

@@ -226,8 +226,7 @@
           <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <template x-for="quiz in jobDescriptionRelatedQuizOptions()" :key="quiz.quiz_key">
               <label
-                class="flex min-w-0 items-start gap-2 rounded-lg border border-blue-100 bg-white/80 px-3 py-2 text-sm transition"
-                :class="jobDescriptionRelatedQuizSelected(quiz.quiz_key) ? 'border-blue-300 bg-blue-50/80 text-blue-800' : 'text-slate-700 hover:bg-blue-50/45'"
+                :class="jobDescriptionRelatedQuizClass(quiz)"
               >
                 <input
                   type="checkbox"
@@ -237,7 +236,7 @@
                   @change="toggleJobDescriptionRelatedQuiz(quiz.quiz_key)"
                 />
                 <span class="min-w-0">
-                  <span class="block truncate font-medium" x-text="quiz.title || quiz.quiz_key"></span>
+                  <span class="block truncate font-medium" x-text="quiz.missing ? '已失效测验' : (quiz.title || quiz.quiz_key)"></span>
                   <span class="mt-0.5 block truncate font-mono text-[11px] text-slate-400" x-text="quiz.quiz_key"></span>
                 </span>
               </label>
