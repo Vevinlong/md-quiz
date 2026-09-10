@@ -126,7 +126,7 @@ POSTGRES_DB=mdquiz
 
 # ========== LLM 评卷（可选） ==========
 OPENAI_API_KEY=<火山方舟 API Key>
-OPENAI_MODEL=deepseek-v4-flash-260425
+OPENAI_MODEL=deepseek-flash
 # OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
 
 # ========== 短信验证（可选） ==========
