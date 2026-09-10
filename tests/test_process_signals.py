@@ -164,6 +164,29 @@ def test_public_process_summary_hydration_contract():
     assert "this._processUnattributedTabSwitchCount" in hydrate_block
 
 
+def test_admin_process_summary_display_contract():
+    source = (ROOT / "static" / "admin" / "modules" / "pages" / "assignments.js").read_text(encoding="utf-8")
+    page = (ROOT / "static" / "admin" / "pages" / "attempt-detail.html").read_text(encoding="utf-8")
+    list_page = (ROOT / "static" / "admin" / "pages" / "assignments.html").read_text(encoding="utf-8")
+
+    assert "attemptProcessSummaryText()" in source
+    assert "题命中：${summary.flagged_question_count}题" in source
+    assert "粘贴：${summary.paste_count}次" in source
+    assert "大块输入：${summary.chunk_input_count}条" in source
+    assert "切屏：${summary.tab_switch_count}次" in source
+    assert "未归属切屏：${summary.unattributed_tab_switch_count}次" in source
+    assert 'x-text="attemptProcessSummaryText()"' in page
+    assert ">过程可疑</span>" in page
+    assert ">过程可疑</span>" in list_page
+
+    answer_index = page.index("attemptReviewIsShortQuestion(question)")
+    process_index = page.index(">作答过程</summary>")
+    reason_index = page.index(">评分理由</div>", process_index)
+    assert answer_index < process_index < reason_index
+    details_start = page.rindex("<details", 0, process_index)
+    assert " open" in page[details_start:process_index]
+
+
 def test_process_suspect_any_question_triggers_paper_flag():
     signals = {
         "Q1": {"paste_count": 0, "chunk_inputs": [], "tab_switches": []},

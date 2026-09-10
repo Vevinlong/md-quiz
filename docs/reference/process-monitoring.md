@@ -14,7 +14,7 @@
 | 性质 | 概率性风格判断 | 客观行为记录 |
 | 判断异常 | 是（0-3 分级 + 阈值） | 否（只客观呈现，不判异常） |
 | 是否计分 | 不参与 | 不参与 |
-| 展示 | 蓝/紫「AI痕迹」badge | 橙「过程」badge + 折叠面板 |
+| 展示 | 蓝/紫「AI痕迹」badge | 橙「过程可疑」badge + 过程面板 |
 
 ## 客观维度与卷面摘要
 
@@ -27,7 +27,7 @@
 ### 2. 大块瞬时输入 `chunk_inputs`
 
 - 采集：单次 `input` 事件的文本净增 ≥ **20 字**记为一次。
-- 记录：`[{ at_sec, chars }]`，即"相对首字第几秒灌入多少字"。
+- 记录：`[{ at_sec, chars }]`，即"整卷开始后第几秒灌入多少字"。
 - 兜底：粘贴之外的拖放、输入法整句上屏、脚本注入等。
 - **口径说明**：`20` 是「大块」这一标签的操作化归类（正常逐字输入每次净增 1 字），**不是异常阈值**——系统只归类呈现、不据此判可疑。
 
@@ -35,7 +35,7 @@
 
 - 采集：`document.visibilitychange` 变为 `hidden` 记一次（切 tab / 切后台 / 最小化）。
 - 记录：`[{ at_sec, duration_sec }]`。
-- `at_sec` 单位为秒，基准是**首次聚焦/进入该题**；若切屏发生在任何聚焦之前，该次切屏自身建立 0 秒基准。
+- `at_sec` 单位为秒，基准是**整卷开始计时**（`assignment.timing.start_at`，回退 `quiz.entered_at`）；`duration_sec` 是该次页面不可见的持续秒数。
 - 归属规则：linear 模式优先归属当前题目；full 模式优先归属当前聚焦的 short/code 编辑器。无法归属到题目时，计入卷面级 `unattributed_tab_switch_count`，不硬绑到某题。
 - 不记 `blur`（点别的窗口也算 blur，visibility 才是"页面真不可见"）。
 
@@ -44,6 +44,7 @@
 - 起点：该题 `value` **首次从空 → 非空**的第一次输入事件（**focus 不计时**）。
 - 终点：该题答案提交 / 离开时。
 - 时长 = 首字输入 → 提交的**墙钟时间**（**含中间切屏时段**，切屏由维度 3 独立呈现，两者不互相篡改）。
+- 该口径与 `chunk_inputs[].at_sec` / `tab_switches[].at_sec` 的整卷时点是两套独立时间：前者衡量单题作答耗时，后者定位事件发生在整卷第几秒。
 - 单位为秒；后台展示会换算为 `x秒 / x分x秒 / x小时x分x秒`。
 - 普通逐字输入即使没有粘贴、大块输入或切屏，也会建立本地信号条目并记录编辑时长。
 - 空答（无首字输入）→ 无 `edit_start_ts`，展示为「—」。
@@ -76,10 +77,10 @@
 ```jsonc
 // assignment.data.process_signals = { "<qid>": {
 //   "paste_count": 2,
-//   "chunk_inputs": [ { "at_sec": 12, "chars": 132 }, { "at_sec": 45, "chars": 238 } ],
+//   "chunk_inputs": [ { "at_sec": 610, "chars": 132 }, { "at_sec": 1530, "chars": 238 } ],
 //   "edit_start_ts": 1720000000,
 //   "edit_duration_seconds": 108,
-//   "tab_switches": [ { "at_sec": 20, "duration_sec": 45 } ]
+//   "tab_switches": [ { "at_sec": 625, "duration_sec": 45 } ]
 // } }
 // assignment.data.process_summary = {
 //   "paste_count": 2,
@@ -125,7 +126,7 @@ location.reload();
 开启后 Console 输出统一前缀 `[process-signals]`，覆盖：
 
 - `init` / `state` / `hydrate`：监听器、题型识别、已有信号恢复。
-- `input` / `paste` / `visibility`：输入长度、净增字数、粘贴计数、切屏归属与未归属切屏计数。
+- `input` / `paste` / `visibility`：输入长度、净增字数、粘贴计数、整卷经过秒数、切屏归属与未归属切屏计数。
 - `snapshot` / `payload`：本地快照和随请求携带的 `signals`。
 - `linear-answer-*` / `full-save-*` / `full-submit-*` / `attempt-response`：请求前后与服务端回读。
 
@@ -137,10 +138,10 @@ localStorage.removeItem("md-quiz-process-debug");
 
 ## 前端显示位置
 
-- 后台 → 邀约与答题列表卡片：**过程** badge（`process_suspect`）。
-- 后台 → 答题详情头部 / 评价汇总：**过程** badge。
-- 后台 → 答题详情智能评价区：**过程摘要**（题命中、粘贴、大块输入、切屏、未归属切屏）。
-- 后台 → 答题详情每题：题头橙色 `process_flag` badge + 「作答过程」折叠面板（四维度客观罗列）。
+- 后台 → 邀约与答题列表卡片：**过程可疑** badge（`process_suspect`）。
+- 后台 → 答题详情头部 / 评价汇总：**过程可疑** badge。
+- 后台 → 答题详情智能评价区：**过程摘要**（一行展示题命中、粘贴、大块输入、切屏、未归属切屏）。
+- 后台 → 答题详情每题：题头橙色 `process_flag` badge + 默认展开的「作答过程」面板（四维度客观罗列），位于候选人作答之后、评分理由之前。
 
 ## 自测用例
 

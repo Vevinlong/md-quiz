@@ -429,6 +429,13 @@ export function createAdminAssignmentsModule() {
       );
     },
 
+    attemptProcessSummaryText() {
+      const summary = this.attemptProcessSummary();
+      return `题命中：${summary.flagged_question_count}题；粘贴：${summary.paste_count}次；`
+        + `大块输入：${summary.chunk_input_count}条；切屏：${summary.tab_switch_count}次；`
+        + `未归属切屏：${summary.unattributed_tab_switch_count}次。`;
+    },
+
     attemptProcessCount(question, key) {
       const signal = this.attemptReviewProcessSignal(question);
       if (key === "paste_count") {
