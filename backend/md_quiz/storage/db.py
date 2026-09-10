@@ -3603,6 +3603,7 @@ def _append_quiz_paper_filters(
     invite_end_to: str | None = None,
     answer_from: str | None = None,
     answer_to: str | None = None,
+    include_unstarted_direct: bool = False,
 ) -> None:
     q = str(query or "").strip()
     if q:
@@ -3646,14 +3647,32 @@ def _append_quiz_paper_filters(
         params.append(str(invite_end_to).strip())
     # 答题时间筛选（按答题完成时间 finished_at）
     answer_start = str(answer_from or "").strip()
-    if answer_start:
-        where.append("ep.finished_at >= %s::date")
-        params.append(answer_start)
     answer_end = str(answer_to or "").strip()
-    if answer_end:
-        # 含当天：< 次日 0 点
-        where.append("ep.finished_at < (%s::date + INTERVAL '1 day')")
-        params.append(answer_end)
+    if answer_start or answer_end:
+        answer_conditions: list[str] = []
+        if answer_start:
+            answer_conditions.append("ep.finished_at >= %s::date")
+            params.append(answer_start)
+        if answer_end:
+            # 含当天：< 次日 0 点
+            answer_conditions.append("ep.finished_at < (%s::date + INTERVAL '1 day')")
+            params.append(answer_end)
+        answer_condition = " AND ".join(answer_conditions)
+        if include_unstarted_direct:
+            invite_validity = (
+                "ep.invite_end_date < CURRENT_DATE"
+                if status_key == "expired"
+                else "(ep.invite_end_date IS NULL OR ep.invite_end_date >= CURRENT_DATE)"
+            )
+            answer_condition += (
+                " OR ("
+                "ep.source_kind = 'direct'"
+                " AND ep.status IN ('invited'::quiz_paper_status, 'verified'::quiz_paper_status)"
+                " AND ep.entered_at IS NULL"
+                f" AND {invite_validity}"
+                ")"
+            )
+        where.append(f"({answer_condition})")
 
 
 def list_quiz_papers(
@@ -3668,6 +3687,7 @@ def list_quiz_papers(
     invite_end_to: str | None = None,
     answer_from: str | None = None,
     answer_to: str | None = None,
+    include_unstarted_direct: bool = False,
     limit: int | None = None,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
@@ -3709,6 +3729,7 @@ def list_quiz_papers(
         invite_end_to=invite_end_to,
         answer_from=answer_from,
         answer_to=answer_to,
+        include_unstarted_direct=include_unstarted_direct,
     )
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -4702,6 +4723,7 @@ def count_quiz_papers(
     invite_end_to: str | None = None,
     answer_from: str | None = None,
     answer_to: str | None = None,
+    include_unstarted_direct: bool = False,
 ) -> int:
     sql = """
  SELECT COUNT(*)
@@ -4723,6 +4745,7 @@ def count_quiz_papers(
         invite_end_to=invite_end_to,
         answer_from=answer_from,
         answer_to=answer_to,
+        include_unstarted_direct=include_unstarted_direct,
     )
     if where:
         sql += " WHERE " + " AND ".join(where)

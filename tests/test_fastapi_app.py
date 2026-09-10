@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
+from backend.md_quiz.config import ADMIN_PASSWORD, ADMIN_USERNAME
 from backend.md_quiz.api import admin as admin_api
 from backend.md_quiz.api import public as public_api
 from backend.md_quiz.app import create_app
@@ -78,7 +79,7 @@ def _build_client(monkeypatch, tmp_path):
 def _admin_login(client: TestClient) -> None:
     response = client.post(
         "/api/admin/session/login",
-        json={"username": "admin", "password": "password"},
+        json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
     )
     assert response.status_code == 200
 
@@ -2608,6 +2609,7 @@ def test_admin_quiz_analytics_detail_handles_empty_window(monkeypatch, tmp_path)
 def test_admin_assignments_list_exposes_invite_urls_and_end_date_filters(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     version_id = _seed_exam_with_metadata("assignment-list-demo")
+    today = datetime.now(timezone.utc).date()
     candidate_a = create_candidate("候选人甲", "13900000011")
     candidate_b = create_candidate("候选人乙", "13900000012")
     create_quiz_paper(
@@ -2626,30 +2628,119 @@ def test_admin_assignments_list_exposes_invite_urls_and_end_date_filters(monkeyp
         quiz_key="assignment-list-demo",
         quiz_version_id=version_id,
         token="assignB001",
-        invite_start_date="2026-05-08",
-        invite_end_date="2026-05-10",
+        invite_start_date=today.isoformat(),
+        invite_end_date=(today + timedelta(days=2)).isoformat(),
         status="verified",
     )
 
-    login_response = client.post("/api/admin/session/login", json={"username": "admin", "password": "password"})
-    assert login_response.status_code == 200
+    _admin_login(client)
 
-    response = client.get("/api/admin/assignments?end_from=2026-05-01&end_to=2026-05-31")
+    response = client.get(
+        f"/api/admin/assignments?end_from={(today - timedelta(days=6)).isoformat()}&end_to={today.isoformat()}"
+    )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["filters"]["end_from"] == "2026-05-01"
-    assert payload["filters"]["end_to"] == "2026-05-31"
+    assert payload["filters"]["end_from"] == (today - timedelta(days=6)).isoformat()
+    assert payload["filters"]["end_to"] == today.isoformat()
     assert payload["summary"]["unhandled_finished_count"] == 0
     assert len(payload["items"]) == 1
     item = payload["items"][0]
     assert item["token"] == "assignB001"
     assert item["url"] == "http://testserver/t/assignB001"
     assert item["qr_url"] == "/api/admin/assignments/assignB001/qr.png"
-    assert item["invite_end_date"] == "2026-05-10"
+    assert item["invite_end_date"] == (today + timedelta(days=2)).isoformat()
     assert item["source_kind"] == "direct"
     assert item["source_label"] == "主动邀约"
     assert item["needs_attention"] is False
+
+
+def test_admin_assignments_answer_window_keeps_active_direct_invites(monkeypatch, tmp_path):
+    client = _build_client(monkeypatch, tmp_path)
+    version_id = _seed_exam_with_metadata("assignment-answer-window-demo")
+    candidate_id = create_candidate("答题窗口候选人", "13900000013")
+    now = datetime.now(timezone.utc)
+    start_from = (now - timedelta(days=6)).date().isoformat()
+    end_to = now.date().isoformat()
+
+    def seed_attempt(
+        token: str,
+        *,
+        status: str,
+        source_kind: str = "direct",
+        invite_end_date: str,
+        entered_at=None,
+        finished_at=None,
+    ) -> None:
+        create_quiz_paper(
+            candidate_id=candidate_id,
+            phone="13900000013",
+            quiz_key="assignment-answer-window-demo",
+            quiz_version_id=version_id,
+            token=token,
+            source_kind=source_kind,
+            invite_start_date=start_from,
+            invite_end_date=invite_end_date,
+            status=status,
+        )
+        if entered_at is not None or finished_at is not None:
+            update_quiz_paper_result(
+                token,
+                status=status,
+                score=None,
+                entered_at=entered_at,
+                finished_at=finished_at,
+            )
+
+    active_end_date = (now + timedelta(days=1)).date().isoformat()
+    expired_end_date = (now - timedelta(days=1)).date().isoformat()
+    seed_attempt(
+        "answer-window-finished-in",
+        status="finished",
+        invite_end_date=active_end_date,
+        entered_at=now - timedelta(minutes=20),
+        finished_at=now - timedelta(minutes=10),
+    )
+    seed_attempt(
+        "answer-window-finished-out",
+        status="finished",
+        invite_end_date=active_end_date,
+        entered_at=now - timedelta(days=12),
+        finished_at=now - timedelta(days=11),
+    )
+    seed_attempt("answer-window-direct-invited", status="invited", invite_end_date=active_end_date)
+    seed_attempt("answer-window-direct-verified", status="verified", invite_end_date=active_end_date)
+    seed_attempt("answer-window-direct-expired", status="invited", invite_end_date=expired_end_date)
+    seed_attempt("answer-window-public-invited", status="invited", source_kind="public", invite_end_date=active_end_date)
+    seed_attempt(
+        "answer-window-direct-in-quiz",
+        status="in_quiz",
+        invite_end_date=active_end_date,
+        entered_at=now,
+    )
+
+    _admin_login(client)
+
+    response = client.get(f"/api/admin/assignments?start_from={start_from}&end_to={end_to}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    tokens = {item["token"] for item in payload["items"]}
+    assert tokens == {
+        "answer-window-finished-in",
+        "answer-window-direct-invited",
+        "answer-window-direct-verified",
+    }
+    assert payload["total"] == 3
+    assert payload["summary"]["unhandled_finished_count"] == 1
+
+    expired_response = client.get(
+        f"/api/admin/assignments?start_from={start_from}&end_to={end_to}&status=expired"
+    )
+
+    assert expired_response.status_code == 200
+    expired_payload = expired_response.json()
+    assert [item["token"] for item in expired_payload["items"]] == ["answer-window-direct-expired"]
 
 
 def test_admin_assignments_list_supports_status_handling_and_quiz_filters(monkeypatch, tmp_path):
@@ -2732,6 +2823,9 @@ def test_admin_assignments_list_supports_status_handling_and_quiz_filters(monkey
 def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tmp_path):
     client = _build_client(monkeypatch, tmp_path)
     version_id = _seed_exam_with_metadata("assignment-paging-demo")
+    today = datetime.now(timezone.utc).date()
+    start_from = (today - timedelta(days=6)).isoformat()
+    end_to = today.isoformat()
     candidate_id = create_candidate("分页候选人", "13900000032")
     for index in range(25):
         create_quiz_paper(
@@ -2740,8 +2834,8 @@ def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tm
             quiz_key="assignment-paging-demo",
             quiz_version_id=version_id,
             token=f"paging{index + 1:03d}",
-            invite_start_date="2026-05-02",
-            invite_end_date="2026-05-10",
+            invite_start_date=today.isoformat(),
+            invite_end_date=(today + timedelta(days=2)).isoformat(),
             status="invited",
         )
     create_quiz_paper(
@@ -2750,18 +2844,18 @@ def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tm
         quiz_key="assignment-paging-demo",
         quiz_version_id=version_id,
         token="paging-outside",
-        invite_start_date="2026-06-02",
-        invite_end_date="2026-06-10",
+        invite_start_date=(today - timedelta(days=20)).isoformat(),
+        invite_end_date=(today - timedelta(days=10)).isoformat(),
         status="invited",
     )
 
     _admin_login(client)
 
     page_1_response = client.get(
-        "/api/admin/assignments?q=assignment-paging-demo&start_from=2026-05-01&end_to=2026-05-31&page=1"
+        f"/api/admin/assignments?q=assignment-paging-demo&start_from={start_from}&end_to={end_to}&page=1"
     )
     page_2_response = client.get(
-        "/api/admin/assignments?q=assignment-paging-demo&start_from=2026-05-01&end_to=2026-05-31&page=2"
+        f"/api/admin/assignments?q=assignment-paging-demo&start_from={start_from}&end_to={end_to}&page=2"
     )
 
     assert page_1_response.status_code == 200
@@ -2771,8 +2865,8 @@ def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tm
     page_2 = page_2_response.json()
 
     assert page_1["filters"]["q"] == "assignment-paging-demo"
-    assert page_1["filters"]["start_from"] == "2026-05-01"
-    assert page_1["filters"]["end_to"] == "2026-05-31"
+    assert page_1["filters"]["start_from"] == start_from
+    assert page_1["filters"]["end_to"] == end_to
     assert page_1["page"] == 1
     assert page_1["per_page"] == 20
     assert page_1["total"] == 25
@@ -2780,8 +2874,8 @@ def test_admin_assignments_list_supports_pagination_with_filters(monkeypatch, tm
     assert len(page_1["items"]) == 20
 
     assert page_2["filters"]["q"] == "assignment-paging-demo"
-    assert page_2["filters"]["start_from"] == "2026-05-01"
-    assert page_2["filters"]["end_to"] == "2026-05-31"
+    assert page_2["filters"]["start_from"] == start_from
+    assert page_2["filters"]["end_to"] == end_to
     assert page_2["page"] == 2
     assert page_2["per_page"] == 20
     assert page_2["total"] == 25

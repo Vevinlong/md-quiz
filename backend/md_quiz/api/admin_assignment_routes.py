@@ -57,6 +57,7 @@ def get_assignments(
     per_page = 20
     # 日期筛选语义：按答题完成时间（finished_at）。管理后台用 start_from/end_to
     # 表示答题时间范围；邀约窗口期（invite_*）不再用于本列表的日期过滤。
+    # 默认额外保留未开始且未过期的主动邀约，避免新邀约被完成时间过滤隐藏。
     answer_from = str(start_from or "").strip() or None
     answer_to = str(end_to or "").strip() or None
     status_filter = shared.validation_helpers._normalize_exam_status(assignment_status)
@@ -66,6 +67,11 @@ def get_assignments(
     if handled_filter not in {"handled", "unhandled"}:
         handled_filter = ""
     quiz_key_filter = str(quiz_key or "").strip() or None
+    include_unstarted_direct = (
+        status_filter in {"", "invited", "verified", "expired"}
+        and handled_filter in {"", None}
+        and bool(answer_from or answer_to)
+    )
     total = shared.deps.count_quiz_papers(
         query=q or None,
         quiz_key=quiz_key_filter,
@@ -73,6 +79,7 @@ def get_assignments(
         handled_filter=handled_filter or None,
         answer_from=answer_from,
         answer_to=answer_to,
+        include_unstarted_direct=include_unstarted_direct,
     )
     unhandled_finished_count = shared.deps.count_unhandled_finished_quiz_papers(
         query=q or None,
@@ -92,6 +99,7 @@ def get_assignments(
         handled_filter=handled_filter or None,
         answer_from=answer_from,
         answer_to=answer_to,
+        include_unstarted_direct=include_unstarted_direct,
         limit=per_page,
         offset=offset,
     )
