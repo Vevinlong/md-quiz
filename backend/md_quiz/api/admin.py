@@ -183,10 +183,73 @@ def _process_signal_flagged(signal: Any) -> bool:
     )
 
 
-def _process_suspect(signals: Any) -> bool:
+def _process_suspect(signals: Any, process_summary: Any = None) -> bool:
+    paste_count = 0
+    chunk_input_count = 0
+    tab_switch_count = 0
+    if isinstance(process_summary, dict):
+        try:
+            paste_count = max(0, int(process_summary.get("paste_count") or 0))
+            chunk_input_count = max(0, int(process_summary.get("chunk_input_count") or 0))
+            tab_switch_count = max(0, int(process_summary.get("tab_switch_count") or 0))
+        except (TypeError, ValueError):
+            paste_count = chunk_input_count = tab_switch_count = 0
     if not isinstance(signals, dict):
-        return False
-    return any(_process_signal_flagged(signal) for signal in signals.values())
+        return bool(paste_count > 0 or chunk_input_count > 0 or tab_switch_count > 0)
+    return bool(
+        paste_count > 0
+        or chunk_input_count > 0
+        or tab_switch_count > 0
+        or any(_process_signal_flagged(signal) for signal in signals.values())
+    )
+
+
+def _build_process_summary(
+    *,
+    archive: dict[str, Any] | None,
+    assignment: dict[str, Any] | None,
+) -> dict[str, int]:
+    archive_data = archive if isinstance(archive, dict) else {}
+    assignment_data = assignment if isinstance(assignment, dict) else {}
+    signals = (
+        archive_data.get("process_signals")
+        if isinstance(archive_data.get("process_signals"), dict)
+        else assignment_data.get("process_signals")
+    )
+    signals = signals if isinstance(signals, dict) else {}
+    raw_summary = (
+        archive_data.get("process_summary")
+        if isinstance(archive_data.get("process_summary"), dict)
+        else assignment_data.get("process_summary")
+    )
+    raw_summary = raw_summary if isinstance(raw_summary, dict) else {}
+
+    paste_count = 0
+    chunk_input_count = 0
+    attributed_tab_switch_count = 0
+    flagged_question_count = 0
+    for signal in signals.values():
+        if not isinstance(signal, dict):
+            continue
+        paste_count += max(0, _coerce_int_or_none(signal.get("paste_count")) or 0)
+        chunk_items = signal.get("chunk_inputs")
+        tab_items = signal.get("tab_switches")
+        chunk_input_count += len(chunk_items) if isinstance(chunk_items, list) else 0
+        attributed_tab_switch_count += len(tab_items) if isinstance(tab_items, list) else 0
+        if _process_signal_flagged(signal):
+            flagged_question_count += 1
+
+    unattributed_tab_switch_count = max(
+        0,
+        _coerce_int_or_none(raw_summary.get("unattributed_tab_switch_count")) or 0,
+    )
+    return {
+        "flagged_question_count": flagged_question_count,
+        "paste_count": paste_count,
+        "chunk_input_count": chunk_input_count,
+        "tab_switch_count": attributed_tab_switch_count + unattributed_tab_switch_count,
+        "unattributed_tab_switch_count": unattributed_tab_switch_count,
+    }
 
 
 def _parse_date_ymd(value: str) -> date | None:
@@ -1249,7 +1312,10 @@ def _serialize_assignment_row(row: dict[str, Any], *, request: Request) -> dict[
     handled_by = str(row.get("handled_by") or "").strip()
     needs_attention = bool(status_key == "finished" and not handled_at)
     ai_flavor_suspect = _compute_ai_flavor_suspect(grading)
-    process_suspect = _process_suspect((assignment or {}).get("process_signals"))
+    process_suspect = _process_suspect(
+        (assignment or {}).get("process_signals"),
+        (assignment or {}).get("process_summary"),
+    )
     answer_time = _answer_time_displays(row)
     bonus_scored = _coerce_int_or_none((grading or {}).get("bonus_scored"))
     bonus_total = _coerce_int_or_none((grading or {}).get("bonus_total"))
@@ -1321,9 +1387,12 @@ def _serialize_attempt_detail(token: str, *, request: Request) -> dict[str, Any]
         "archive": archive,
         "review": _build_attempt_review(archive=archive, assignment=assignment),
         "ai_flavor_threshold": int(AI_FLAVOR_THRESHOLD or 0),
+        "process_summary": _build_process_summary(archive=archive, assignment=assignment),
         "process_suspect": _process_suspect(
             (archive or {}).get("process_signals")
-            or ((assignment or {}).get("process_signals") if isinstance(assignment, dict) else None)
+            or ((assignment or {}).get("process_signals") if isinstance(assignment, dict) else None),
+            (archive or {}).get("process_summary")
+            or ((assignment or {}).get("process_summary") if isinstance(assignment, dict) else None),
         ),
     }
 

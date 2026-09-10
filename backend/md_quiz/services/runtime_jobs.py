@@ -618,6 +618,9 @@ def _archive_candidate_attempt(assignment: dict, *, spec: dict | None = None) ->
         "process_signals": assignment.get("process_signals")
         if isinstance(assignment.get("process_signals"), dict)
         else {},
+        "process_summary": assignment.get("process_summary")
+        if isinstance(assignment.get("process_summary"), dict)
+        else {},
         "questions": questions_out,
     }
 

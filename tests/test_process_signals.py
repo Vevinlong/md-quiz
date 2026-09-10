@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.md_quiz.api import admin as admin_api
-from backend.md_quiz.api.public import _merge_process_signals
+from backend.md_quiz.api.public import _merge_process_signals, _merge_process_summary
 from backend.md_quiz.services import runtime_jobs
 
 
@@ -64,6 +64,59 @@ def test_merge_process_signals_ignores_non_dict_payload():
     assert assignment["process_signals"] == {"Q1": {"paste_count": 1}}
 
 
+def test_merge_process_summary_recomputes_totals_from_question_signals():
+    assignment = {
+        "process_signals": {
+            "Q1": {
+                "paste_count": 2,
+                "chunk_inputs": [{"at_sec": 3, "chars": 31}],
+                "tab_switches": [{"at_sec": 5, "duration_sec": 60}],
+            },
+            "Q2": {
+                "paste_count": 1,
+                "chunk_inputs": [
+                    {"at_sec": 8, "chars": 40},
+                    {"at_sec": 12, "chars": 50},
+                ],
+                "tab_switches": [
+                    {"at_sec": 2, "duration_sec": 10},
+                    {"at_sec": 6, "duration_sec": 20},
+                ],
+            },
+        }
+    }
+
+    _merge_process_summary(
+        assignment,
+        {
+            "paste_count": 999,
+            "chunk_input_count": 999,
+            "tab_switch_count": 999,
+            "unattributed_tab_switch_count": "3",
+        },
+    )
+
+    assert assignment["process_summary"] == {
+        "paste_count": 3,
+        "chunk_input_count": 3,
+        "tab_switch_count": 6,
+        "unattributed_tab_switch_count": 3,
+    }
+
+
+def test_merge_process_summary_keeps_unattributed_switches_without_question_signal():
+    assignment = {}
+
+    _merge_process_summary(assignment, {"unattributed_tab_switch_count": 2})
+
+    assert assignment["process_summary"] == {
+        "paste_count": 0,
+        "chunk_input_count": 0,
+        "tab_switch_count": 2,
+        "unattributed_tab_switch_count": 2,
+    }
+
+
 def test_process_signal_flag_ignores_edit_duration_only():
     assert admin_api._process_signal_flagged(
         {"paste_count": 0, "chunk_inputs": [], "edit_duration_seconds": 3600, "tab_switches": []}
@@ -91,6 +144,18 @@ def test_public_process_signal_timing_contract():
     assert "at_sec: this._processSecondsSinceEngagement(qid)" in visibility_block
 
 
+def test_public_process_summary_hydration_contract():
+    source = (ROOT / "static" / "public" / "modules" / "process-signals.js").read_text(encoding="utf-8")
+    hydrate_start = source.index("hydrateProcessSignalsFromState()")
+    hydrate_end = source.index("initProcessSignals()", hydrate_start)
+    hydrate_block = source[hydrate_start:hydrate_end]
+
+    assert hydrate_block.index("const summary =") < hydrate_block.index(
+        'if (!stored || typeof stored !== "object")'
+    )
+    assert "this._processUnattributedTabSwitchCount" in hydrate_block
+
+
 def test_process_suspect_any_question_triggers_paper_flag():
     signals = {
         "Q1": {"paste_count": 0, "chunk_inputs": [], "tab_switches": []},
@@ -99,6 +164,45 @@ def test_process_suspect_any_question_triggers_paper_flag():
 
     assert admin_api._process_suspect(signals) is True
     assert admin_api._process_suspect({}) is False
+
+
+def test_process_suspect_covers_unattributed_switches_and_signal_fallback():
+    assert admin_api._process_suspect({}, {"tab_switch_count": 1}) is True
+    assert (
+        admin_api._process_suspect(
+            {"Q1": {"paste_count": 1, "chunk_inputs": [], "tab_switches": []}},
+            {"paste_count": 0, "chunk_input_count": 0, "tab_switch_count": 0},
+        )
+        is True
+    )
+
+
+def test_build_process_summary_recomputes_archive_totals():
+    archive = {
+        "process_signals": {
+            "Q1": {
+                "paste_count": 2,
+                "chunk_inputs": [{"at_sec": 3, "chars": 31}],
+                "tab_switches": [{"at_sec": 5, "duration_sec": 60}],
+            }
+        },
+        "process_summary": {
+            "paste_count": 999,
+            "chunk_input_count": 999,
+            "tab_switch_count": 999,
+            "unattributed_tab_switch_count": 2,
+        },
+    }
+
+    summary = admin_api._build_process_summary(archive=archive, assignment=None)
+
+    assert summary == {
+        "flagged_question_count": 1,
+        "paste_count": 2,
+        "chunk_input_count": 1,
+        "tab_switch_count": 3,
+        "unattributed_tab_switch_count": 2,
+    }
 
 
 def test_archive_candidate_attempt_carries_process_signals(monkeypatch):
@@ -124,6 +228,12 @@ def test_archive_candidate_attempt_carries_process_signals(monkeypatch):
     )
 
     signals = {"Q1": {"paste_count": 1, "chunk_inputs": [], "tab_switches": []}}
+    process_summary = {
+        "paste_count": 1,
+        "chunk_input_count": 0,
+        "tab_switch_count": 1,
+        "unattributed_tab_switch_count": 0,
+    }
     runtime_jobs._archive_candidate_attempt(
         {
             "token": "archive-token",
@@ -132,11 +242,13 @@ def test_archive_candidate_attempt_carries_process_signals(monkeypatch):
             "candidate_id": 1,
             "answers": {"Q1": "答案"},
             "process_signals": signals,
+            "process_summary": process_summary,
         },
         spec={"questions": [{"qid": "Q1", "type": "short", "max_points": 10}]},
     )
 
     assert captured["archive"]["process_signals"] == signals
+    assert captured["archive"]["process_summary"] == process_summary
 
 
 def test_build_review_answers_attaches_process_signal_and_flag():

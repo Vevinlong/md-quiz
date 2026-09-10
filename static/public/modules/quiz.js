@@ -223,6 +223,7 @@ export function createPublicQuizModule() {
                 session_id: this.sessionId,
                 force_timeout: Boolean(action.forceTimeout),
                 signals: this.processSignalsPayload([question.qid]),
+                process_summary: this.processSummarySnapshot(),
               };
               this.logProcessSignalsRequest("linear-answer-request", body);
               const data = await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {

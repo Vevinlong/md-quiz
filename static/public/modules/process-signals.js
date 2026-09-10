@@ -1,5 +1,5 @@
 const PROCESS_DEBUG_ON_VALUES = new Set(["1", "true", "yes", "on"]);
-const PROCESS_DEBUG_VERSION = "20260910-2";
+const PROCESS_DEBUG_VERSION = "20260910-3";
 
 export function createPublicProcessSignalsModule() {
   return {
@@ -8,6 +8,7 @@ export function createPublicProcessSignalsModule() {
     _processLastValues: {},
     _processStartedAtMs: {},
     _processEngagementAtMs: {},
+    _processUnattributedTabSwitchCount: 0,
     _processHiddenQid: "",
     _processHiddenAtMs: null,
     _processHydrated: false,
@@ -64,6 +65,7 @@ export function createPublicProcessSignalsModule() {
         forceTimeout: Boolean(body.force_timeout),
         signalsPresent: body.signals !== undefined,
         signals: body.signals ?? null,
+        processSummary: body.process_summary ?? null,
       });
     },
 
@@ -74,6 +76,7 @@ export function createPublicProcessSignalsModule() {
         status: String(data?.assignment?.status || ""),
         signalsPresent: signals !== undefined,
         signals: signals ?? null,
+        processSummary: this.state?.assignment?.process_summary ?? null,
       });
     },
 
@@ -90,6 +93,7 @@ export function createPublicProcessSignalsModule() {
         })),
         storedSignalKeys: this._processDebugSignalKeys(this.state?.assignment?.process_signals),
         localSignalKeys: this._processDebugSignalKeys(this._processSignals),
+        processSummary: this.state?.assignment?.process_summary ?? null,
         hydrated: Boolean(this._processHydrated),
       });
     },
@@ -190,17 +194,24 @@ export function createPublicProcessSignalsModule() {
     },
 
     _processQidFromEvent(event) {
-      const target = event?.target;
-      if (!target?.closest) return "";
-      const textarea = target.closest("textarea[data-process-qid]");
+      return this._processQidFromElement(event?.target);
+    },
+
+    _processQidFromElement(element) {
+      if (!element?.closest) return "";
+      const textarea = element.closest("textarea[data-process-qid]");
       if (textarea) return String(textarea.dataset.processQid || "");
-      const mount = target.closest(".code-mount[data-qid]");
+      const mount = element.closest(".code-mount[data-qid]");
       return mount ? String(mount.dataset.qid || "") : "";
     },
 
+    _processActiveQid() {
+      return this._processQidFromElement(document.activeElement);
+    },
+
     _processFallbackQid() {
-      const current = this._processCurrentQid;
-      if (this._processTrackable(current)) return current;
+      const examMode = String(this.state?.quiz?.exam_mode || "").trim().toLowerCase();
+      if (examMode === "full") return this._processActiveQid();
       const question = this.currentQuestion?.();
       const qid = String(question?.qid || "");
       return this._processTrackable(qid) ? qid : "";
@@ -229,7 +240,13 @@ export function createPublicProcessSignalsModule() {
         fallbackQid: qid,
       });
       if (hidden) {
-        if (!qid) return;
+        if (!qid) {
+          this._processUnattributedTabSwitchCount += 1;
+          this._processDebug("visibility-unattributed", {
+            unattributedTabSwitchCount: this._processUnattributedTabSwitchCount,
+          });
+          return;
+        }
         if (!this._processEngagementAtMs[qid]) {
           this._processEngagementAtMs[qid] = Date.now();
         }
@@ -291,13 +308,46 @@ export function createPublicProcessSignalsModule() {
       return result;
     },
 
+    processSummarySnapshot() {
+      this._processFinishHiddenSwitch();
+      const signals = Object.values(this._processSignals || {});
+      const pasteCount = signals.reduce((sum, signal) => sum + Math.max(0, Number(signal?.paste_count || 0)), 0);
+      const chunkInputCount = signals.reduce((sum, signal) => {
+        const items = Array.isArray(signal?.chunk_inputs) ? signal.chunk_inputs : [];
+        return sum + items.length;
+      }, 0);
+      const attributedTabSwitchCount = signals.reduce((sum, signal) => {
+        const items = Array.isArray(signal?.tab_switches) ? signal.tab_switches : [];
+        return sum + items.length;
+      }, 0);
+      const unattributedTabSwitchCount = Math.max(0, Number(this._processUnattributedTabSwitchCount || 0));
+      return {
+        paste_count: pasteCount,
+        chunk_input_count: chunkInputCount,
+        tab_switch_count: attributedTabSwitchCount + unattributedTabSwitchCount,
+        unattributed_tab_switch_count: unattributedTabSwitchCount,
+      };
+    },
+
     hydrateProcessSignalsFromState() {
       if (this._processHydrated) return;
       this._processHydrated = true;
+      const summary = this.state?.assignment?.process_summary;
+      if (summary && typeof summary === "object") {
+        const unattributed = Number(summary.unattributed_tab_switch_count);
+        this._processUnattributedTabSwitchCount += Number.isFinite(unattributed) && unattributed >= 0
+          ? Math.round(unattributed)
+          : 0;
+      }
       const stored = this.state?.assignment?.process_signals;
       const answers = this.state?.assignment?.answers || {};
       if (!stored || typeof stored !== "object") {
-        this._processDebug("hydrate", { stored: false, storedSignalKeys: [] });
+        this._processDebug("hydrate", {
+          stored: false,
+          storedSignalKeys: [],
+          processSummary: summary ?? null,
+          unattributedTabSwitchCount: this._processUnattributedTabSwitchCount,
+        });
         return;
       }
       const skippedKeys = [];
@@ -328,6 +378,8 @@ export function createPublicProcessSignalsModule() {
         storedSignalKeys: Object.keys(stored),
         skippedKeys,
         hydratedSignalKeys: Object.keys(this._processSignals),
+        processSummary: summary ?? null,
+        unattributedTabSwitchCount: this._processUnattributedTabSwitchCount,
       });
     },
 

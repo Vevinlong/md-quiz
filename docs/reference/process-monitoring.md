@@ -1,6 +1,6 @@
 # 答题过程监控（process_signals）
 
-> **状态：已实现（2026-09-09）。** 本文档记录设计方案与口径决策，代码已按五步实现并落测试。
+> **状态：已实现（2026-09-09，2026-09-10 增加卷面摘要）。** 本文档记录设计方案与口径决策，代码已实现并落测试。
 
 记录候选人在主观题（简答 `short`、编程 `code`）作答过程中的**客观行为信号**，辅助人工复核是否存在「复制粘贴 / 切屏查答案」等非自主作答行为。
 
@@ -16,7 +16,7 @@
 | 是否计分 | 不参与 | 不参与 |
 | 展示 | 蓝/紫「AI痕迹」badge | 橙「过程」badge + 折叠面板 |
 
-## 四个客观维度
+## 客观维度与卷面摘要
 
 ### 1. 粘贴次数 `paste_count`
 
@@ -36,6 +36,7 @@
 - 采集：`document.visibilitychange` 变为 `hidden` 记一次（切 tab / 切后台 / 最小化）。
 - 记录：`[{ at_sec, duration_sec }]`。
 - `at_sec` 单位为秒，基准是**首次聚焦/进入该题**；若切屏发生在任何聚焦之前，该次切屏自身建立 0 秒基准。
+- 归属规则：linear 模式优先归属当前题目；full 模式优先归属当前聚焦的 short/code 编辑器。无法归属到题目时，计入卷面级 `unattributed_tab_switch_count`，不硬绑到某题。
 - 不记 `blur`（点别的窗口也算 blur，visibility 才是"页面真不可见"）。
 
 ### 4. 编辑时长 `edit_duration_seconds`（**辅助，不参与 flag**）
@@ -47,12 +48,21 @@
 - 普通逐字输入即使没有粘贴、大块输入或切屏，也会建立本地信号条目并记录编辑时长。
 - 空答（无首字输入）→ 无 `edit_start_ts`，展示为「—」。
 
+### 5. 卷面级过程摘要 `process_summary`
+
+- `paste_count`：所有题目 `paste_count` 之和。
+- `chunk_input_count`：所有题目 `chunk_inputs` 条数之和。
+- `tab_switch_count`：所有题目 `tab_switches` 条数之和，再加上无法归属到题目的切屏数。
+- `unattributed_tab_switch_count`：无法归属到题目的切屏数。
+- 服务端落库时重新计算粘贴、大块输入和题目内切屏总量，只接受前端传来的「无法归属切屏数」；后台展示时再次按归档题目信号重算，避免错误总量污染摘要。
+
 ## flag 机制
 
 **判据：三个计数维度（粘贴 / 大块输入 / 切屏）任一 > 0。编辑时长不参与。**
 
 - **题目级** `process_flag`：该题任一计数维度 > 0 → 打标。
-- **卷面级** `process_suspect`：任一题 `process_flag` → 打标（地位等同 `ai_flavor_suspect`）。
+- **卷面级** `process_suspect`：粘贴、大块输入或切屏总量任一 > 0 → 打标（地位等同 `ai_flavor_suspect`）。仅有未归属切屏时也触发卷面 flag，但不触发任何题目 flag。
+- **题命中数**：只统计 `process_flag` 命中的题目数；未归属切屏不会把题命中数加 1。
 
 ## 非空处理
 
@@ -71,6 +81,12 @@
 //   "edit_duration_seconds": 108,
 //   "tab_switches": [ { "at_sec": 20, "duration_sec": 45 } ]
 // } }
+// assignment.data.process_summary = {
+//   "paste_count": 2,
+//   "chunk_input_count": 1,
+//   "tab_switch_count": 3,
+//   "unattributed_tab_switch_count": 1,
+// }
 ```
 
 前端本地聚合、提交时携带全量值，服务端直接覆盖（事件唯一发生在前端，避免后端合并复杂度）；随现有 `answers` / `submit` 请求附带，**零新增请求、低存储**。
@@ -79,10 +95,10 @@
 
 ```
 前端采集（input/paste/visibilitychange）→ 本地聚合到 process_signals[qid]
-  → 提交答案时附带 signals 字段
-  → _apply_answer_action 落 assignment.data.process_signals
-  → 判卷归档写入 archive.process_signals
-  → 判卷详情序列化透传 process_signals / process_flag / process_suspect
+  → 提交答案时附带 signals / process_summary 字段
+  → _apply_answer_action 落 assignment.data.process_signals / process_summary
+  → 判卷归档写入 archive.process_signals / archive.process_summary
+  → 判卷详情序列化透传 process_signals / process_flag / process_summary / process_suspect
   → 后台展示（答题卡片 / 评价汇总 / 题目头部 / 作答过程面板）
 ```
 
@@ -91,6 +107,7 @@
 - 前端采集器：`static/public/modules/process-signals.js`
 - 提交附带：`static/public/modules/quiz.js` `performAnswerAction`、`static/public/modules/pages/full-quiz.js` `saveAnswer` / `confirmSubmit`
 - 后端落库：`backend/md_quiz/api/public.py` `_apply_answer_action` / `_merge_process_signals`
+- 卷面摘要：`backend/md_quiz/api/public.py` `_merge_process_summary`、`backend/md_quiz/api/admin.py` `_build_process_summary`
 - 归档透传：`backend/md_quiz/services/runtime_jobs.py` `_archive_candidate_attempt`
 - 详情透传与 flag：`backend/md_quiz/api/admin.py` `_build_review_answers` / `_serialize_assignment_row` / `_serialize_attempt_detail`
 - 展示：`static/admin/pages/attempt-detail.html`、`static/admin/pages/assignments.html`、`static/admin/modules/pages/assignments.js`
@@ -108,7 +125,7 @@ location.reload();
 开启后 Console 输出统一前缀 `[process-signals]`，覆盖：
 
 - `init` / `state` / `hydrate`：监听器、题型识别、已有信号恢复。
-- `input` / `paste` / `visibility`：输入长度、净增字数、粘贴计数、切屏归属。
+- `input` / `paste` / `visibility`：输入长度、净增字数、粘贴计数、切屏归属与未归属切屏计数。
 - `snapshot` / `payload`：本地快照和随请求携带的 `signals`。
 - `linear-answer-*` / `full-save-*` / `full-submit-*` / `attempt-response`：请求前后与服务端回读。
 
@@ -122,6 +139,7 @@ localStorage.removeItem("md-quiz-process-debug");
 
 - 后台 → 邀约与答题列表卡片：**过程** badge（`process_suspect`）。
 - 后台 → 答题详情头部 / 评价汇总：**过程** badge。
+- 后台 → 答题详情智能评价区：**过程摘要**（题命中、粘贴、大块输入、切屏、未归属切屏）。
 - 后台 → 答题详情每题：题头橙色 `process_flag` badge + 「作答过程」折叠面板（四维度客观罗列）。
 
 ## 自测用例
@@ -152,6 +170,19 @@ localStorage.removeItem("md-quiz-process-debug");
 | 1 | 切 tab 再回 ×3 | `tab_switches` 3 条 |
 | 2 | 最小化再恢复 | 1 条 |
 | 3 | 页内点其他元素 | 0（不记 blur）|
+
+### 卷面摘要
+
+| # | 操作 | 预期 |
+|---|---|---|
+| 1 | full 模式下未聚焦任何题目，直接切屏 2 次 | 每题 `tab_switches=[]`；摘要 `unattributed_tab_switch_count=2`、`tab_switch_count=2`，卷面 flag 命中 |
+| 2 | linear 模式当前为 short 题，未聚焦输入框即切屏 | 该题 `tab_switches=1`，摘要未归属数为 0 |
+| 3 | Q1 粘贴 2 次、Q2 大块输入 1 次、未归属切屏 1 次 | 摘要粘贴 2、大块输入 1、切屏为题目内切屏 + 1，题命中数为有题目级事实的题数 |
+
+## 检测边界
+
+- `visibilitychange` 只能证明页面变为不可见，不能覆盖「分屏/并排窗口仍可见但焦点切走」。
+- `window blur` 能观察到可见窗口失焦，但点击浏览器工具栏、打开开发者工具、系统弹窗等也会触发，误报明显高于 `visibilitychange`，因此当前不把它混入「切屏」。若需要监控分屏，应单独增加「可见失焦」维度，不与切屏合并计数。
 
 ### 集成
 

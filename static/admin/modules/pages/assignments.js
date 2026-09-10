@@ -394,8 +394,39 @@ export function createAdminAssignmentsModule() {
       return this.attemptReviewAnswers().some((question) => this.attemptReviewProcessFlagged(question));
     },
 
-    attemptProcessFlaggedCount() {
-      return this.attemptReviewAnswers().filter((question) => this.attemptReviewProcessFlagged(question)).length;
+    attemptProcessSummary() {
+      const toCount = (value) => {
+        const count = Number(value || 0);
+        return Number.isFinite(count) ? Math.max(0, count) : 0;
+      };
+      const raw = this.attemptDetail?.process_summary;
+      if (raw && typeof raw === "object") {
+        return {
+          flagged_question_count: toCount(raw.flagged_question_count),
+          paste_count: toCount(raw.paste_count),
+          chunk_input_count: toCount(raw.chunk_input_count),
+          tab_switch_count: toCount(raw.tab_switch_count),
+          unattributed_tab_switch_count: toCount(raw.unattributed_tab_switch_count),
+        };
+      }
+
+      return this.attemptReviewAnswers().reduce(
+        (acc, question) => {
+          const signal = this.attemptReviewProcessSignal(question);
+          acc.paste_count += toCount(signal.paste_count);
+          acc.chunk_input_count += Array.isArray(signal.chunk_inputs) ? signal.chunk_inputs.length : 0;
+          acc.tab_switch_count += Array.isArray(signal.tab_switches) ? signal.tab_switches.length : 0;
+          if (this.attemptProcessFlagged(question)) acc.flagged_question_count += 1;
+          return acc;
+        },
+        {
+          flagged_question_count: 0,
+          paste_count: 0,
+          chunk_input_count: 0,
+          tab_switch_count: 0,
+          unattributed_tab_switch_count: 0,
+        },
+      );
     },
 
     attemptProcessCount(question, key) {

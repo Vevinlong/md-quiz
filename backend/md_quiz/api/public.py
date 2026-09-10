@@ -49,6 +49,7 @@ class AnswerActionPayload(BaseModel):
     session_id: str = ""
     force_timeout: bool = False
     signals: dict[str, Any] | None = None
+    process_summary: dict[str, Any] | None = None
 
 
 def _public_base_url(request: Request) -> str:
@@ -531,6 +532,32 @@ def _merge_process_signals(
         assignment.pop("process_signals", None)
 
 
+def _merge_process_summary(assignment: dict[str, Any], raw: Any) -> None:
+    if not isinstance(raw, dict):
+        return
+    unattributed_tab_switches = _coerce_non_negative_int(raw.get("unattributed_tab_switch_count"))
+    signals = assignment.get("process_signals") if isinstance(assignment.get("process_signals"), dict) else {}
+    paste_count = 0
+    chunk_input_count = 0
+    attributed_tab_switch_count = 0
+    for signal in signals.values():
+        if not isinstance(signal, dict):
+            continue
+        paste_count += _coerce_non_negative_int(signal.get("paste_count"))
+        chunk_input_count += len(signal.get("chunk_inputs") or [])
+        attributed_tab_switch_count += len(signal.get("tab_switches") or [])
+    summary = {
+        "paste_count": paste_count,
+        "chunk_input_count": chunk_input_count,
+        "tab_switch_count": attributed_tab_switch_count + unattributed_tab_switches,
+        "unattributed_tab_switch_count": unattributed_tab_switches,
+    }
+    if signals or any(summary.values()):
+        assignment["process_summary"] = summary
+    else:
+        assignment.pop("process_summary", None)
+
+
 def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     should_reload = False
@@ -581,6 +608,7 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
         elif is_full:
             # ── full 模式：保存答案，不推进题号，不检查 question_locked ──
             _merge_process_signals(assignment, questions, action.signals)
+            _merge_process_summary(assignment, action.process_summary)
             qid = str(action.question_id or "").strip()
             if qid:
                 normalized_answer = _normalize_answer_for_question(
@@ -607,6 +635,7 @@ def _apply_answer_action(token: str, action: AnswerActionPayload, *, session_id:
                 raise HTTPException(status_code=409, detail="question_locked")
 
             _merge_process_signals(assignment, questions, action.signals)
+            _merge_process_summary(assignment, action.process_summary)
             answers = assignment.setdefault("answers", {})
             if action.force_timeout:
                 answers.pop(current_qid, None)
@@ -974,6 +1003,7 @@ async def public_save_answers_bulk(token: str, request: Request):
         answer=value,
         session_id=_normalize_public_session_id(body.get("session_id") if isinstance(body, dict) else ""),
         signals=body.get("signals") if isinstance(body, dict) else None,
+        process_summary=body.get("process_summary") if isinstance(body, dict) else None,
     )
     session_id = _normalize_public_session_id(payload.session_id or _session_id_from_request(request))
     return _apply_answer_action(token, payload, session_id=session_id)

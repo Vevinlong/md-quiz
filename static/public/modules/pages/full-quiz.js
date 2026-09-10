@@ -227,6 +227,7 @@ export function createPublicFullQuizModule() {
           submit: false,
           session_id: this.sessionId,
           signals: this.processSignalsPayload([qid]),
+          process_summary: this.processSummarySnapshot(),
         };
         this.logProcessSignalsRequest("full-save-request", body);
         const data = await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
@@ -353,6 +354,7 @@ export function createPublicFullQuizModule() {
           submit: true,
           session_id: this.sessionId,
           signals: this.processSignalsPayload(),
+          process_summary: this.processSummarySnapshot(),
         };
         this.logProcessSignalsRequest("full-submit-request", body);
         await this.api(`/api/public/answers/${encodeURIComponent(this.route.token)}`, {
