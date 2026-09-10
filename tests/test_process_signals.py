@@ -191,6 +191,16 @@ def test_admin_process_summary_display_contract():
     assert " open" in page[details_start:process_index]
 
 
+def test_admin_process_time_display_uses_readable_format() -> None:
+    source = (ROOT / "static" / "admin" / "modules" / "pages" / "assignments.js").read_text(encoding="utf-8")
+
+    assert "formatProcessTime(seconds) {" in source
+    assert "第${this.formatProcessTime(item?.at_sec)} +${Number(item?.chars || 0)}字" in source
+    assert "第${this.formatProcessTime(item?.at_sec)}，离开${this.formatProcessTime(item?.duration_sec)}" in source
+    assert "if (minutes || hours)" in source
+    assert "第${Number(item?.at_sec || 0)}秒" not in source
+
+
 def test_process_suspect_any_question_triggers_paper_flag():
     signals = {
         "Q1": {"paste_count": 0, "chunk_inputs": [], "tab_switches": []},

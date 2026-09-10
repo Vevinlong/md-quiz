@@ -35,7 +35,7 @@
 
 - 采集：`document.visibilitychange` 变为 `hidden` 记一次（切 tab / 切后台 / 最小化）。
 - 记录：`[{ at_sec, duration_sec }]`。
-- `at_sec` 单位为秒，基准是**整卷开始计时**（`assignment.timing.start_at`，回退 `quiz.entered_at`）；`duration_sec` 是该次页面不可见的持续秒数。
+- `at_sec` 单位为秒（后台明细展示会换算为 `x秒 / x分x秒 / x小时x分x秒`），基准是**整卷开始计时**（`assignment.timing.start_at`，回退 `quiz.entered_at`）；`duration_sec` 是该次页面不可见的持续秒数，后台同样换算为可读时长。
 - 归属规则：linear 模式优先归属当前题目；full 模式优先归属当前聚焦的 short/code 编辑器。无法归属到题目时，计入卷面级 `unattributed_tab_switch_count`，不硬绑到某题。
 - 不记 `blur`（点别的窗口也算 blur，visibility 才是"页面真不可见"）。
 
@@ -45,7 +45,7 @@
 - 终点：该题答案提交 / 离开时。
 - 时长 = 首字输入 → 提交的**墙钟时间**（**含中间切屏时段**，切屏由维度 3 独立呈现，两者不互相篡改）。
 - 该口径与 `chunk_inputs[].at_sec` / `tab_switches[].at_sec` 的整卷时点是两套独立时间：前者衡量单题作答耗时，后者定位事件发生在整卷第几秒。
-- 单位为秒；后台展示会换算为 `x秒 / x分x秒 / x小时x分x秒`。
+- 单位为秒；后台切屏/大块输入明细与编辑时长均换算为 `x秒 / x分x秒 / x小时x分x秒`。
 - 普通逐字输入即使没有粘贴、大块输入或切屏，也会建立本地信号条目并记录编辑时长。
 - 空答（无首字输入）→ 无 `edit_start_ts`，展示为「—」。
 

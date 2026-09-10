@@ -455,7 +455,7 @@ export function createAdminAssignmentsModule() {
       const items = this.attemptReviewProcessSignal(question).chunk_inputs;
       if (!Array.isArray(items) || !items.length) return "";
       return items
-        .map((item) => `第${Number(item?.at_sec || 0)}秒 +${Number(item?.chars || 0)}字`)
+        .map((item) => `第${this.formatProcessTime(item?.at_sec)} +${Number(item?.chars || 0)}字`)
         .join("；");
     },
 
@@ -463,8 +463,24 @@ export function createAdminAssignmentsModule() {
       const items = this.attemptReviewProcessSignal(question).tab_switches;
       if (!Array.isArray(items) || !items.length) return "";
       return items
-        .map((item) => `第${Number(item?.at_sec || 0)}秒，离开${Number(item?.duration_sec || 0)}秒`)
+        .map((item) => `第${this.formatProcessTime(item?.at_sec)}，离开${this.formatProcessTime(item?.duration_sec)}`)
         .join("；");
+    },
+
+    formatProcessTime(seconds) {
+      const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const remainderSeconds = totalSeconds % 60;
+      const parts = [];
+      if (hours) {
+        parts.push(`${hours}小时`);
+      }
+      if (minutes || hours) {
+        parts.push(`${minutes}分`);
+      }
+      parts.push(`${remainderSeconds}秒`);
+      return parts.join("");
     },
 
     attemptReviewOptionIsSelected(question, option) {
