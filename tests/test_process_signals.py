@@ -178,6 +178,10 @@ def test_admin_process_summary_display_contract():
     assert 'x-text="attemptProcessSummaryText()"' in page
     assert ">过程可疑</span>" in page
     assert ">过程可疑</span>" in list_page
+    assert "process_summary: data?.process_summary || {}" in source
+    assert page.count('x-text="attemptProcessSummaryText()"') == 2
+    assert 'x-show="isAdminCompactLayout"' in page
+    assert page.index('x-show="isAdminCompactLayout"') < page.index('x-show="attemptReviewAnswers().length"')
 
     answer_index = page.index("attemptReviewIsShortQuestion(question)")
     process_index = page.index(">作答过程</summary>")

@@ -1140,6 +1140,7 @@ export function createAdminAssignmentsModule() {
         quiz_paper: data?.quiz_paper || {},
         archive: data?.archive || {},
         review: data?.review || { answers: [], evaluation: {} },
+        process_summary: data?.process_summary || {},
         process_suspect: Boolean(data?.process_suspect || data?.quiz_paper?.process_suspect),
       };
       const nextStatus = this.assignmentStatusValue(this.attemptDetail?.quiz_paper);
