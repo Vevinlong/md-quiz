@@ -45,8 +45,8 @@ bash scripts/deploy.sh all        # 场景4: 上面三者顺序走（只构建�
 内网包固定名 `deploy-package.tar`（不带版本，版本号在包内 md-quiz.tar 的 version.json，deploy-server.sh 会打印），scp 命令永远不变：
 
 ```bash
-scp /home/dkw/projects/md-quiz/md-quiz-ssh/deploy-package.tar dkw@192.168.181.33:/home/dkw/Download/md-quiz-release/
-ssh dkw@192.168.181.33 "cd /home/dkw/Download/md-quiz-release && tar -xf deploy-package.tar && cd deploy-package && ./deploy-server.sh"
+scp /home/dkw/projects/md-quiz/md-quiz-ssh/deploy-package.tar dkw@192.168.181.33:/home/dkw/md-quiz-release/
+ssh dkw@192.168.181.33 "cd /home/dkw/md-quiz-release && tar -xf deploy-package.tar && cd deploy-package && ./deploy-server.sh"
 ```
 
 > **SITE_BASE_URL 关键点**：云端部署走 IT 提供的 HTTP 接口（上传 env + 镜像 + 重启），

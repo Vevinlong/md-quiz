@@ -20,7 +20,7 @@ WORKSPACE_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"    # md-quiz-ssh/（工作区�
 # ===== 配置段（按需修改） =====
 INTERNAL_USER=dkw
 INTERNAL_HOST=192.168.181.33
-INTERNAL_DIR=/home/dkw/Download/md-quiz-release
+INTERNAL_DIR=/home/dkw/md-quiz-release
 CLOUD_DOMAIN=onlinetest.dakewe.cn          # 考试系统正式域名（上传的 .env 用）
 CLOUD_ENV_FILE="$WORKSPACE_ROOT/cloud-upload.env"   # 云端凭证（非 git）
 
