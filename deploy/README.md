@@ -45,7 +45,7 @@ bash scripts/deploy.sh all        # 场景4: 上面三者顺序走（只构建�
 内网包固定名 `deploy-package.tar`（不带版本，版本号在包内 md-quiz.tar 的 version.json，deploy-server.sh 会打印），scp 命令永远不变：
 
 ```bash
-scp /home/dkw/projects/md-quiz/md-quiz-ssh/md-quiz/deploy-package.tar dkw@192.168.181.33:/home/dkw/Download/md-quiz-release/
+scp /home/dkw/projects/md-quiz/md-quiz-ssh/deploy-package.tar dkw@192.168.181.33:/home/dkw/Download/md-quiz-release/
 ssh dkw@192.168.181.33 "cd /home/dkw/Download/md-quiz-release && tar -xf deploy-package.tar && cd deploy-package && ./deploy-server.sh"
 ```
 
